@@ -21,8 +21,12 @@ final class AppState: ObservableObject {
 
     private let defaults: UserDefaults
     private var pollingTask: Task<Void, Never>?
+    private var activeOpenPanel: NSOpenPanel?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults? = nil) {
+        let defaults = defaults
+            ?? UserDefaults(suiteName: Self.preferencesSuiteName)
+            ?? .standard
         self.defaults = defaults
         configuredExecutable = defaults.string(forKey: Keys.executable) ?? ""
 
@@ -182,8 +186,9 @@ final class AppState: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        addProject(at: url)
+        present(panel) { [weak self] url in
+            self?.addProject(at: url)
+        }
     }
 
     func chooseExecutable() {
@@ -194,9 +199,11 @@ final class AppState: ObservableObject {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        configuredExecutable = url.path
-        Task { await refresh() }
+        present(panel) { [weak self] url in
+            guard let self else { return }
+            self.configuredExecutable = url.path
+            Task { await self.refresh() }
+        }
     }
 
     func addProject(at url: URL) {
@@ -234,8 +241,27 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func present(_ panel: NSOpenPanel, onChoose: @escaping (URL) -> Void) {
+        activeOpenPanel?.cancel(nil)
+        activeOpenPanel = panel
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.level = .floating
+        panel.center()
+        panel.begin { [weak self, weak panel] response in
+            Task { @MainActor in
+                defer { self?.activeOpenPanel = nil }
+                guard response == .OK, let url = panel?.url else { return }
+                onChoose(url)
+            }
+        }
+        panel.orderFrontRegardless()
+    }
+
     private enum Keys {
         static let projects = "projects"
         static let executable = "bdExecutablePath"
     }
+
+    private static let preferencesSuiteName = "im.carlosrivera.BeadsStatusBar"
 }
