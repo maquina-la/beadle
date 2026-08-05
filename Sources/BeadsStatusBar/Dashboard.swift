@@ -132,7 +132,7 @@ struct DashboardView: View {
     private var issueList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                VStack(spacing: 0) {
                     ForEach(state.filteredProjectIssues) { snapshot in
                         Section {
                             if snapshot.issues.isEmpty, let error = snapshot.error {
