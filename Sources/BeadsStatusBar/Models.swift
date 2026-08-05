@@ -112,15 +112,17 @@ enum IssueFilter: String, CaseIterable, Identifiable {
     case open
     case inProgress
     case blocked
+    case closed
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .all: "All"
+        case .all: "Active"
         case .open: "Open"
-        case .inProgress: "Active"
+        case .inProgress: "In progress"
         case .blocked: "Blocked"
+        case .closed: "Closed"
         }
     }
 
@@ -130,6 +132,7 @@ enum IssueFilter: String, CaseIterable, Identifiable {
         case .open: issue.normalizedStatus == .open
         case .inProgress: issue.normalizedStatus == .inProgress
         case .blocked: issue.normalizedStatus == .blocked
+        case .closed: issue.normalizedStatus == .closed
         }
     }
 }

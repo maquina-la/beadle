@@ -6,9 +6,10 @@ A native macOS menu-bar companion for [Beads](https://github.com/steveyegge/bead
 
 - Native SwiftUI `MenuBarExtra` interface for macOS 14+
 - Multiple Beads repositories in one view
-- Open, active, and blocked filters plus issue search
+- Active, open, in-progress, blocked, and closed filters plus issue search
 - Priority, type, assignee, dependency, comment, and update metadata
 - Automatic refresh every 20 seconds
+- Native Liquid Glass styling on macOS 26 with a translucent material fallback
 - Read-only access through the local `bd` CLI
 - A universal Apple Silicon/Intel `.app` bundle and zip suitable for a Homebrew Cask release
 

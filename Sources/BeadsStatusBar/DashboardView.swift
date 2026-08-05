@@ -22,7 +22,7 @@ struct DashboardView: View {
             footer
         }
         .frame(width: 440, height: 580)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background { DashboardBackground() }
         .task { state.startPolling() }
     }
 
@@ -183,6 +183,34 @@ struct DashboardView: View {
     private var summaryText: String {
         let count = state.openIssueCount
         return count == 1 ? "1 open issue" : "\(count) open issues"
+    }
+}
+
+private struct DashboardBackground: View {
+    var body: some View {
+        ZStack {
+            if #available(macOS 26.0, *) {
+                Color.clear
+                    .glassEffect(
+                        .regular.tint(Color.accentColor.opacity(0.055)),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+            } else {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+            }
+
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.035),
+                    Color.accentColor.opacity(0.018),
+                    Color.clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .allowsHitTesting(false)
+        }
     }
 }
 

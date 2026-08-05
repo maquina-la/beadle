@@ -66,7 +66,7 @@ struct BeadsClient: Sendable {
         process.executableURL = URL(fileURLWithPath: executable)
         process.currentDirectoryURL = URL(fileURLWithPath: project.path, isDirectory: true)
         process.arguments = [
-            "list", "--json", "--limit", "0", "--no-pager",
+            "list", "--all", "--json", "--limit", "0", "--no-pager",
             "--readonly", "--sandbox"
         ]
         process.standardOutput = outputHandle
