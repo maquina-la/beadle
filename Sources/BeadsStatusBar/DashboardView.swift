@@ -253,7 +253,10 @@ private struct ProjectErrorView: View {
 
 private struct IssueRow: View {
     let issue: BeadIssue
-    @State private var isHovering = false
+    @State private var isRowHovering = false
+    @State private var isPanelHovering = false
+    @State private var isDetailsPresented = false
+    @State private var hoverTask: Task<Void, Never>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -303,21 +306,11 @@ private struct IssueRow: View {
                     .foregroundStyle(.tertiary)
                 }
 
-                if isHovering {
-                    IssueHoverDetails(issue: issue, statusColor: statusColor)
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity
-                            )
-                        )
-                }
             }
 
-            if isHovering {
+            if isRowHovering || isDetailsPresented {
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(issue.id, forType: .string)
+                    copyToPasteboard(issue.id)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -327,21 +320,24 @@ private struct IssueRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(isHovering ? Color.primary.opacity(0.045) : .clear)
-        .animation(.easeOut(duration: 0.16), value: isHovering)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.16)) {
-                isHovering = hovering
-            }
+        .background(isRowHovering || isDetailsPresented ? Color.primary.opacity(0.045) : .clear)
+        .animation(.easeOut(duration: 0.12), value: isRowHovering)
+        .onHover(perform: handleRowHover)
+        .popover(
+            isPresented: $isDetailsPresented,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .trailing
+        ) {
+            IssueDetailPanel(issue: issue, statusColor: statusColor)
+                .onHover(perform: handlePanelHover)
         }
+        .onDisappear { hoverTask?.cancel() }
         .contextMenu {
             Button("Copy issue ID") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(issue.id, forType: .string)
+                copyToPasteboard(issue.id)
             }
             Button("Copy title") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(issue.title, forType: .string)
+                copyToPasteboard(issue.title)
             }
         }
     }
@@ -365,14 +361,91 @@ private struct IssueRow: View {
         default: "checkmark.square"
         }
     }
+
+    private func handleRowHover(_ hovering: Bool) {
+        isRowHovering = hovering
+        hoverTask?.cancel()
+
+        if hovering {
+            hoverTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .milliseconds(240))
+                } catch {
+                    return
+                }
+                guard isRowHovering else { return }
+                isDetailsPresented = true
+            }
+        } else {
+            scheduleDismiss()
+        }
+    }
+
+    private func handlePanelHover(_ hovering: Bool) {
+        isPanelHovering = hovering
+        if hovering {
+            hoverTask?.cancel()
+        } else {
+            scheduleDismiss()
+        }
+    }
+
+    private func scheduleDismiss() {
+        hoverTask?.cancel()
+        hoverTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(260))
+            } catch {
+                return
+            }
+            guard !isRowHovering, !isPanelHovering else { return }
+            isDetailsPresented = false
+        }
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
 }
 
-private struct IssueHoverDetails: View {
+private struct IssueDetailPanel: View {
     let issue: BeadIssue
     let statusColor: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: issue.normalizedStatus.symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 20, height: 22)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(issue.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Text(issue.id)
+                            .font(.caption.monospaced())
+                        PriorityBadge(priority: issue.priority)
+                        Text(issue.issueType.capitalized)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 4)
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(issue.id, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy issue ID")
+            }
+
             Divider()
 
             if let description = issue.description?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -380,7 +453,7 @@ private struct IssueHoverDetails: View {
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(5)
+                    .lineLimit(8)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             } else {
@@ -390,33 +463,39 @@ private struct IssueHoverDetails: View {
                     .foregroundStyle(.tertiary)
             }
 
-            HStack(spacing: 12) {
-                DetailLabel(
-                    title: issue.normalizedStatus.label,
-                    symbol: issue.normalizedStatus.symbol,
-                    color: statusColor
-                )
-
-                if let person = issue.assignee ?? issue.owner, !person.isEmpty {
-                    DetailLabel(title: person, symbol: "person.crop.circle")
+            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 9) {
+                GridRow {
+                    DetailLabel(
+                        title: issue.normalizedStatus.label,
+                        symbol: issue.normalizedStatus.symbol,
+                        color: statusColor
+                    )
+                    if let person = issue.assignee ?? issue.owner, !person.isEmpty {
+                        DetailLabel(title: person, symbol: "person.crop.circle")
+                    }
                 }
-
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 14) {
-                DetailLabel(
-                    title: "\(issue.dependencyCount) dependencies",
-                    symbol: "arrow.triangle.branch"
-                )
-                DetailLabel(
-                    title: "\(issue.dependentCount) dependents",
-                    symbol: "point.3.connected.trianglepath.dotted"
-                )
-                DetailLabel(
-                    title: "\(issue.commentCount) comments",
-                    symbol: "bubble.left"
-                )
+                GridRow {
+                    DetailLabel(
+                        title: "\(issue.dependencyCount) dependencies",
+                        symbol: "arrow.triangle.branch"
+                    )
+                    DetailLabel(
+                        title: "\(issue.dependentCount) dependents",
+                        symbol: "point.3.connected.trianglepath.dotted"
+                    )
+                }
+                GridRow {
+                    DetailLabel(
+                        title: "\(issue.commentCount) comments",
+                        symbol: "bubble.left"
+                    )
+                    if let updated = issue.updatedDate {
+                        DetailLabel(
+                            title: updated.formatted(.relative(presentation: .numeric)),
+                            symbol: "clock"
+                        )
+                    }
+                }
             }
 
             HStack(spacing: 12) {
@@ -430,7 +509,8 @@ private struct IssueHoverDetails: View {
             .font(.caption2)
             .foregroundStyle(.tertiary)
         }
-        .padding(.top, 2)
+        .padding(16)
+        .frame(width: 340, alignment: .leading)
     }
 }
 
