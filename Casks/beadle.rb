@@ -5,7 +5,7 @@ cask "beadle" do
   url "https://github.com/maquina-la/beadle/releases/download/v#{version}/beadle-#{version}.zip",
       verified: "github.com/maquina-la/beadle/"
   name "Beadle"
-  desc "Native macOS menu bar companion for Beads issue trackers"
+  desc "Menu bar companion for local Beads issue trackers"
   homepage "https://github.com/maquina-la/beadle"
 
   livecheck do
@@ -17,7 +17,5 @@ cask "beadle" do
 
   app "Beadle.app"
 
-  zap trash: [
-    "~/Library/Preferences/im.carlosrivera.BeadsStatusBar.plist",
-  ]
+  zap trash: "~/Library/Preferences/im.carlosrivera.BeadsStatusBar.plist"
 end
