@@ -27,7 +27,8 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           VERSION="${VERSION#v}"
-          shasum -a 256 "dist/beadle-${VERSION}.zip" > "dist/beadle-${VERSION}.zip.sha256"
+          cd dist
+          shasum -a 256 "beadle-${VERSION}.zip" > "beadle-${VERSION}.zip.sha256"
 
       - name: Publish GitHub release
         env:
