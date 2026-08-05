@@ -58,7 +58,7 @@ struct DashboardView: View {
             .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("Beads")
+                Text("Beadle")
                     .font(.headline)
                 Text(summaryText)
                     .font(.caption)

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
-APP_NAME="Beads Status Bar"
+APP_NAME="Beadle"
 EXECUTABLE_NAME="BeadsStatusBar"
 VERSION=${VERSION:-0.1.0}
 BUILD_NUMBER=${BUILD_NUMBER:-1}
@@ -49,9 +49,9 @@ cp "packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 codesign --force --deep --sign "${CODE_SIGN_IDENTITY:--}" "$APP_BUNDLE"
 
 mkdir -p "$PROJECT_ROOT/dist"
-rm -f "$PROJECT_ROOT/dist/beads-status-bar-$VERSION.zip"
+rm -f "$PROJECT_ROOT/dist/beadle-$VERSION.zip"
 ditto -c -k --sequesterRsrc --keepParent \
     "$APP_BUNDLE" \
-    "$PROJECT_ROOT/dist/beads-status-bar-$VERSION.zip"
+    "$PROJECT_ROOT/dist/beadle-$VERSION.zip"
 
 echo "$APP_BUNDLE"

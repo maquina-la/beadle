@@ -55,12 +55,12 @@ pkill -x BeadsStatusBar 2>/dev/null || true
 scripts/install-local.sh
 ```
 
-`scripts/install-local.sh` builds the current architecture in release mode, creates and ad-hoc signs the app bundle, replaces `/Applications/Beads Status Bar.app`, and opens it. The app is menu-bar-only, so it will not appear in the Dock.
+`scripts/install-local.sh` builds the current architecture in release mode, creates and ad-hoc signs the app bundle, replaces `/Applications/Beadle.app`, and opens it. The app is menu-bar-only, so it will not appear in the Dock.
 
 Confirm that the installed copy is running:
 
 ```bash
-pgrep -fl '/Applications/Beads Status Bar.app/Contents/MacOS/BeadsStatusBar'
+pgrep -fl '/Applications/Beadle.app/Contents/MacOS/BeadsStatusBar'
 ```
 
 Always quit the previous process before reinstalling. Otherwise macOS can leave the old executable running and make a UI change appear missing.
@@ -77,7 +77,7 @@ swift build
 
 After installation:
 
-1. Click the Beads icon in the macOS menu bar.
+1. Click the Beadle icon in the macOS menu bar.
 2. Add or select a folder containing a `.beads` project.
 3. Verify open and closed issue views, project and status filters, search, hover details, copy controls, and the secondary detail window.
 4. Quit and reopen the app once to verify settings and project selection persist.
@@ -89,24 +89,24 @@ Before a release or Homebrew test, build both Apple Silicon and Intel slices and
 
 ```bash
 UNIVERSAL=1 scripts/build-app.sh
-lipo -info 'dist/Beads Status Bar.app/Contents/MacOS/BeadsStatusBar'
-codesign --verify --deep --strict 'dist/Beads Status Bar.app'
-plutil -lint 'dist/Beads Status Bar.app/Contents/Info.plist'
+lipo -info 'dist/Beadle.app/Contents/MacOS/BeadsStatusBar'
+codesign --verify --deep --strict 'dist/Beadle.app'
+plutil -lint 'dist/Beadle.app/Contents/Info.plist'
 ```
 
 To install that exact universal build without rebuilding it:
 
 ```bash
 pkill -x BeadsStatusBar 2>/dev/null || true
-ditto 'dist/Beads Status Bar.app' '/Applications/Beads Status Bar.app'
-open '/Applications/Beads Status Bar.app'
+ditto 'dist/Beadle.app' '/Applications/Beadle.app'
+open '/Applications/Beadle.app'
 ```
 
 ### Remove the Local Installation
 
 ```bash
 pkill -x BeadsStatusBar 2>/dev/null || true
-rm -rf '/Applications/Beads Status Bar.app'
+rm -rf '/Applications/Beadle.app'
 ```
 
 <!-- BEGIN BEADS INTEGRATION -->

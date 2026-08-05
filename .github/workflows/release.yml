@@ -1,4 +1,4 @@
-name: Release macOS app
+name: Release
 
 on:
   push:
@@ -11,21 +11,32 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Build app bundle
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Build universal app
         env:
           VERSION: ${{ github.ref_name }}
-          BUILD_NUMBER: ${{ github.run_number }}
-          UNIVERSAL: 1
         run: |
-          VERSION="${VERSION#v}" scripts/build-app.sh
+          VERSION="${VERSION#v}" UNIVERSAL=1 scripts/build-app.sh
 
-      - name: Verify release build
-        run: swift build -c release
+      - name: Create checksum
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          shasum -a 256 "dist/beadle-${VERSION}.zip" > "dist/beadle-${VERSION}.zip.sha256"
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --generate-notes
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION_NUMBER="${VERSION#v}"
+          gh release create "$VERSION" \
+            "dist/beadle-${VERSION_NUMBER}.zip" \
+            "dist/beadle-${VERSION_NUMBER}.zip.sha256" \
+            --generate-notes \
+            --verify-tag

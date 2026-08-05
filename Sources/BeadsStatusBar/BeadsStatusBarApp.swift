@@ -10,7 +10,7 @@ struct BeadsStatusBarApp: App {
                 .environmentObject(state)
         } label: {
             Label("\(state.openIssueCount)", systemImage: "circle.hexagongrid.fill")
-                .accessibilityLabel("Beads: \(state.openIssueCount) open issues")
+                .accessibilityLabel("Beadle: \(state.openIssueCount) open issues")
                 .task { state.startPolling() }
         }
         .menuBarExtraStyle(.window)
@@ -19,5 +19,13 @@ struct BeadsStatusBarApp: App {
             SettingsView()
                 .environmentObject(state)
         }
+
+        #if DEBUG
+        WindowGroup("Beadle", id: "readme-screenshot") {
+            DashboardView()
+                .environmentObject(state)
+        }
+        .windowResizability(.contentSize)
+        #endif
     }
 }
