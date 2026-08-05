@@ -10,7 +10,7 @@ A native macOS menu-bar companion for [Beads](https://github.com/steveyegge/bead
 - Priority, type, assignee, dependency, comment, and update metadata
 - Automatic refresh every 20 seconds
 - Read-only access through the local `bd` CLI
-- A signed `.app` bundle and zip suitable for a Homebrew Cask release
+- A universal Apple Silicon/Intel `.app` bundle and zip suitable for a Homebrew Cask release
 
 ## Run from source
 
@@ -29,6 +29,12 @@ scripts/install-local.sh
 ```
 
 The release artifact is written to `dist/beads-status-bar-0.1.0.zip`.
+
+To produce the same universal binary used by tagged releases:
+
+```sh
+UNIVERSAL=1 scripts/build-app.sh
+```
 
 ## Homebrew distribution
 

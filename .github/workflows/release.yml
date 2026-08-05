@@ -18,6 +18,7 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
+          UNIVERSAL: 1
         run: |
           VERSION="${VERSION#v}" scripts/build-app.sh
 
