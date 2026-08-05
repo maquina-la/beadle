@@ -22,7 +22,13 @@ struct DashboardView: View {
             footer
         }
         .frame(width: 440, height: 580)
-        .background { DashboardBackground() }
+        .background {
+            ZStack {
+                DashboardBackground()
+                WindowTransparencyConfigurator()
+                    .allowsHitTesting(false)
+            }
+        }
         .task { state.startPolling() }
     }
 
@@ -192,14 +198,41 @@ private struct DashboardBackground: View {
         if #available(macOS 26.0, *) {
             Color.clear
                 .glassEffect(
-                    .regular,
+                    .clear,
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                 )
         } else {
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .opacity(0.9)
+                .opacity(0.82)
         }
+    }
+}
+
+private struct WindowTransparencyConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        TransparentWindowProbeView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? TransparentWindowProbeView)?.configureWindow()
+    }
+}
+
+private final class TransparentWindowProbeView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        configureWindow()
+    }
+
+    func configureWindow() {
+        guard let window else { return }
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+        window.invalidateShadow()
     }
 }
 
