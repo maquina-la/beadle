@@ -10,6 +10,7 @@ struct DashboardView: View {
     @FocusState private var searchHasFocus: Bool
     @State private var selectedIssueKey: IssueKey?
     @State private var pinnedIssueKey: IssueKey?
+    @State private var collapsedProjectIDs: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -134,6 +135,7 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(state.filteredProjectIssues) { snapshot in
+                        let isCollapsed = collapsedProjectIDs.contains(snapshot.project.id)
                         Section {
                             if snapshot.issues.isEmpty, let error = snapshot.error {
                                 ProjectErrorView(message: error) {
@@ -141,39 +143,45 @@ struct DashboardView: View {
                                 }
                             }
 
-                            ForEach(snapshot.issues) { issue in
-                                let key = IssueKey(
-                                    projectID: snapshot.project.id,
-                                    issueID: issue.id
-                                )
-                                IssueRow(
-                                    project: snapshot.project,
-                                    issue: issue,
-                                    detail: state.detail(for: key, fallback: issue),
-                                    detailIsLoading: state.loadingDetails.contains(key),
-                                    detailError: state.detailErrors[key],
-                                    isSelected: selectedIssueKey == key,
-                                    isPinned: pinnedIssueKey == key,
-                                    onActivate: {
-                                        listHasFocus = true
-                                        selectedIssueKey = key
-                                        pinnedIssueKey = pinnedIssueKey == key ? nil : key
-                                        requestDetails(for: issue, in: snapshot.project)
-                                    },
-                                    onPreview: {
-                                        requestDetails(for: issue, in: snapshot.project)
-                                    }
-                                )
-                                .id(key)
+                            if !isCollapsed {
+                                ForEach(snapshot.issues) { issue in
+                                    let key = IssueKey(
+                                        projectID: snapshot.project.id,
+                                        issueID: issue.id
+                                    )
+                                    IssueRow(
+                                        project: snapshot.project,
+                                        issue: issue,
+                                        detail: state.detail(for: key, fallback: issue),
+                                        detailIsLoading: state.loadingDetails.contains(key),
+                                        detailError: state.detailErrors[key],
+                                        isSelected: selectedIssueKey == key,
+                                        isPinned: pinnedIssueKey == key,
+                                        onActivate: {
+                                            listHasFocus = true
+                                            selectedIssueKey = key
+                                            pinnedIssueKey = pinnedIssueKey == key ? nil : key
+                                            requestDetails(for: issue, in: snapshot.project)
+                                        },
+                                        onPreview: {
+                                            requestDetails(for: issue, in: snapshot.project)
+                                        }
+                                    )
+                                    .id(key)
 
-                                Divider()
-                                    .padding(.leading, 42)
+                                    Divider()
+                                        .padding(.leading, 42)
+                                }
                             }
                         } header: {
                             ProjectHeader(
                                 name: snapshot.project.name,
                                 count: snapshot.issues.count,
-                                error: snapshot.error
+                                error: snapshot.error,
+                                isCollapsed: isCollapsed,
+                                onToggle: {
+                                    toggleCollapse(snapshot.project.id)
+                                }
                             )
                         }
                     }
@@ -315,10 +323,19 @@ struct DashboardView: View {
     }
 
     private var visibleEntries: [IssueEntry] {
-        state.filteredProjectIssues.flatMap { snapshot in
-            snapshot.issues.map {
+        state.filteredProjectIssues.flatMap { snapshot -> [IssueEntry] in
+            guard !collapsedProjectIDs.contains(snapshot.project.id) else { return [] }
+            return snapshot.issues.map {
                 IssueEntry(project: snapshot.project, issue: $0)
             }
+        }
+    }
+
+    private func toggleCollapse(_ projectID: UUID) {
+        if collapsedProjectIDs.contains(projectID) {
+            collapsedProjectIDs.remove(projectID)
+        } else {
+            collapsedProjectIDs.insert(projectID)
         }
     }
 
@@ -492,27 +509,42 @@ private struct ProjectHeader: View {
     let name: String
     let count: Int
     let error: String?
+    let isCollapsed: Bool
+    let onToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(name.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            if let error {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .help(error)
-                    .accessibilityLabel("Project unavailable: \(error)")
+        Button(action: onToggle) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                    .frame(width: 10)
+
+                Text(name.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if let error {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .help(error)
+                        .accessibilityLabel("Project unavailable: \(error)")
+                }
+                Spacer()
+                Text("\(count)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
             }
-            Spacer()
-            Text("\(count)")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.tertiary)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, 14)
         .frame(height: 26)
         .background(.thinMaterial)
+        .accessibilityLabel("\(name) project, \(count) issues")
+        .accessibilityValue(isCollapsed ? "collapsed" : "expanded")
+        .accessibilityHint("Press to \(isCollapsed ? "expand" : "collapse") this project")
     }
 }
 
