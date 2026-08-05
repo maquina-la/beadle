@@ -28,7 +28,7 @@ The repository doubles as a Homebrew tap:
 
 ```sh
 brew tap maquina-la/beadle https://github.com/maquina-la/beadle
-brew install --cask beadle
+brew install --cask maquina-la/beadle/beadle
 ```
 
 Upgrade later with:
