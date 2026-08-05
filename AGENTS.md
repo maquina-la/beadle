@@ -36,6 +36,79 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
+## Local macOS Install and UI Testing
+
+Test UI changes using the installed app bundle, not only `swift run`. The bundle exercises the real `Info.plist`, menu-bar-only lifecycle, resources, and code signing that users receive.
+
+### Prerequisites
+
+- macOS 14 or newer
+- Swift 6 or newer (`swift --version`)
+- `bd` available on `PATH` for loading real Beads data
+
+### Build, Install, and Relaunch
+
+From the repository root:
+
+```bash
+pkill -x BeadsStatusBar 2>/dev/null || true
+scripts/install-local.sh
+```
+
+`scripts/install-local.sh` builds the current architecture in release mode, creates and ad-hoc signs the app bundle, replaces `/Applications/Beads Status Bar.app`, and opens it. The app is menu-bar-only, so it will not appear in the Dock.
+
+Confirm that the installed copy is running:
+
+```bash
+pgrep -fl '/Applications/Beads Status Bar.app/Contents/MacOS/BeadsStatusBar'
+```
+
+Always quit the previous process before reinstalling. Otherwise macOS can leave the old executable running and make a UI change appear missing.
+
+### Fast Compile Check
+
+For a quick compiler check that does not install or launch the app:
+
+```bash
+swift build
+```
+
+### UI Smoke Test
+
+After installation:
+
+1. Click the Beads icon in the macOS menu bar.
+2. Add or select a folder containing a `.beads` project.
+3. Verify open and closed issue views, project and status filters, search, hover details, copy controls, and the secondary detail window.
+4. Quit and reopen the app once to verify settings and project selection persist.
+5. If no issues appear, confirm the app can resolve `bd` and that `bd list --json` works from the selected repository.
+
+### Validate a Distributable Universal Bundle
+
+Before a release or Homebrew test, build both Apple Silicon and Intel slices and verify the result:
+
+```bash
+UNIVERSAL=1 scripts/build-app.sh
+lipo -info 'dist/Beads Status Bar.app/Contents/MacOS/BeadsStatusBar'
+codesign --verify --deep --strict 'dist/Beads Status Bar.app'
+plutil -lint 'dist/Beads Status Bar.app/Contents/Info.plist'
+```
+
+To install that exact universal build without rebuilding it:
+
+```bash
+pkill -x BeadsStatusBar 2>/dev/null || true
+ditto 'dist/Beads Status Bar.app' '/Applications/Beads Status Bar.app'
+open '/Applications/Beads Status Bar.app'
+```
+
+### Remove the Local Installation
+
+```bash
+pkill -x BeadsStatusBar 2>/dev/null || true
+rm -rf '/Applications/Beads Status Bar.app'
+```
+
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
 
