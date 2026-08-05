@@ -14,6 +14,7 @@ struct SettingsView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "folder")
                                 .foregroundStyle(.secondary)
+                                .frame(width: 18)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(project.name)
                                     .fontWeight(.medium)
@@ -29,6 +30,9 @@ struct SettingsView: View {
                                 Image(systemName: "minus.circle")
                             }
                             .buttonStyle(.borderless)
+                            .frame(width: 28, height: 28)
+                            .help("Remove \(project.name)")
+                            .accessibilityLabel("Remove \(project.name)")
                         }
                     }
                 }
@@ -37,8 +41,23 @@ struct SettingsView: View {
             }
 
             Section("Beads CLI") {
-                TextField("Executable path", text: $state.configuredExecutable)
-                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 8) {
+                    TextField("Executable path", text: $state.configuredExecutable)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Choose…") { state.chooseExecutable() }
+                }
+
+                if let path = state.resolvedExecutablePath {
+                    Label(path, systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .textSelection(.enabled)
+                } else {
+                    Label("bd executable not found", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
                 Text("Leave empty to discover bd in Homebrew, ~/.local/bin, or ~/go/bin.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -33,10 +33,59 @@ struct BeadsClient: Sendable {
         }.value
     }
 
+    static func loadIssueDetails(
+        issueID: String,
+        for project: ProjectConfiguration,
+        configuredExecutable: String?
+    ) async throws -> BeadIssue {
+        try await Task.detached(priority: .userInitiated) {
+            let data = try runSynchronously(
+                arguments: [
+                    "show", "--id=\(issueID)", "--json",
+                    "--readonly", "--sandbox"
+                ],
+                project: project,
+                configuredExecutable: configuredExecutable
+            )
+
+            do {
+                guard let issue = try JSONDecoder().decode([BeadIssue].self, from: data).first else {
+                    throw BeadsClientError.invalidResponse("bd returned no issue details.")
+                }
+                return issue
+            } catch let error as BeadsClientError {
+                throw error
+            } catch {
+                throw BeadsClientError.invalidResponse(error.localizedDescription)
+            }
+        }.value
+    }
+
     private static func loadIssuesSynchronously(
         for project: ProjectConfiguration,
         configuredExecutable: String?
     ) throws -> [BeadIssue] {
+        let outputData = try runSynchronously(
+            arguments: [
+                "list", "--all", "--json", "--limit", "0", "--no-pager",
+                "--readonly", "--sandbox"
+            ],
+            project: project,
+            configuredExecutable: configuredExecutable
+        )
+
+        do {
+            return try JSONDecoder().decode([BeadIssue].self, from: outputData)
+        } catch {
+            throw BeadsClientError.invalidResponse(error.localizedDescription)
+        }
+    }
+
+    private static func runSynchronously(
+        arguments: [String],
+        project: ProjectConfiguration,
+        configuredExecutable: String?
+    ) throws -> Data {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: project.path) else {
             throw BeadsClientError.projectMissing(project.path)
@@ -65,10 +114,7 @@ struct BeadsClient: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.currentDirectoryURL = URL(fileURLWithPath: project.path, isDirectory: true)
-        process.arguments = [
-            "list", "--all", "--json", "--limit", "0", "--no-pager",
-            "--readonly", "--sandbox"
-        ]
+        process.arguments = arguments
         process.standardOutput = outputHandle
         process.standardError = errorHandle
 
@@ -92,11 +138,7 @@ struct BeadsClient: Sendable {
             )
         }
 
-        do {
-            return try JSONDecoder().decode([BeadIssue].self, from: outputData)
-        } catch {
-            throw BeadsClientError.invalidResponse(error.localizedDescription)
-        }
+        return outputData
     }
 
     static func resolveExecutable(configuredExecutable: String?) -> String? {

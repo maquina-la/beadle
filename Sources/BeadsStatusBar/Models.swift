@@ -12,7 +12,41 @@ struct ProjectConfiguration: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
+struct IssueKey: Hashable, Identifiable, Sendable {
+    let projectID: UUID
+    let issueID: String
+
+    var id: String { "\(projectID.uuidString):\(issueID)" }
+}
+
+struct BeadRelation: Decodable, Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let status: String?
+    let dependencyType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, status, type
+        case issueID = "issue_id"
+        case dependsOnID = "depends_on_id"
+        case dependencyType = "dependency_type"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let relationID = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? container.decodeIfPresent(String.self, forKey: .dependsOnID)
+            ?? container.decodeIfPresent(String.self, forKey: .issueID)
+            ?? "unknown"
+        id = relationID
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? relationID
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        dependencyType = try container.decodeIfPresent(String.self, forKey: .dependencyType)
+            ?? container.decodeIfPresent(String.self, forKey: .type)
+    }
+}
+
+struct BeadIssue: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let description: String?
@@ -26,6 +60,13 @@ struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
     let dependencyCount: Int
     let dependentCount: Int
     let commentCount: Int
+    let labels: [String]
+    let dependencies: [BeadRelation]
+    let dependents: [BeadRelation]
+    let notes: String?
+    let dueAt: String?
+    let closedAt: String?
+    let closeReason: String?
 
     var normalizedStatus: IssueStatus {
         IssueStatus(rawValue: status) ?? .open
@@ -41,6 +82,16 @@ struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
         return ISO8601DateFormatter().date(from: createdAt)
     }
 
+    var dueDate: Date? {
+        guard let dueAt else { return nil }
+        return ISO8601DateFormatter().date(from: dueAt)
+    }
+
+    var closedDate: Date? {
+        guard let closedAt else { return nil }
+        return ISO8601DateFormatter().date(from: closedAt)
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, title, description, status, priority, assignee, owner
         case issueType = "issue_type"
@@ -49,6 +100,10 @@ struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
         case dependencyCount = "dependency_count"
         case dependentCount = "dependent_count"
         case commentCount = "comment_count"
+        case labels, dependencies, dependents, notes
+        case dueAt = "due_at"
+        case closedAt = "closed_at"
+        case closeReason = "close_reason"
     }
 
     init(from decoder: Decoder) throws {
@@ -66,6 +121,13 @@ struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
         dependencyCount = try container.decodeIfPresent(Int.self, forKey: .dependencyCount) ?? 0
         dependentCount = try container.decodeIfPresent(Int.self, forKey: .dependentCount) ?? 0
         commentCount = try container.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
+        labels = try container.decodeIfPresent([String].self, forKey: .labels) ?? []
+        dependencies = try container.decodeIfPresent([BeadRelation].self, forKey: .dependencies) ?? []
+        dependents = try container.decodeIfPresent([BeadRelation].self, forKey: .dependents) ?? []
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        dueAt = try container.decodeIfPresent(String.self, forKey: .dueAt)
+        closedAt = try container.decodeIfPresent(String.self, forKey: .closedAt)
+        closeReason = try container.decodeIfPresent(String.self, forKey: .closeReason)
     }
 }
 
@@ -95,6 +157,16 @@ enum IssueStatus: String, CaseIterable, Identifiable, Sendable {
         case .blocked: "exclamationmark.octagon.fill"
         case .deferred: "pause.circle"
         case .closed: "checkmark.circle.fill"
+        }
+    }
+
+    var colorName: String {
+        switch self {
+        case .open: "secondary"
+        case .inProgress: "blue"
+        case .blocked: "red"
+        case .deferred: "secondary"
+        case .closed: "green"
         }
     }
 }
