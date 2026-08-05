@@ -274,6 +274,16 @@ private struct IssueRow: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 }
+
+                if isHovering {
+                    IssueHoverDetails(issue: issue, statusColor: statusColor)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity
+                            )
+                        )
+                }
             }
 
             if isHovering {
@@ -290,7 +300,12 @@ private struct IssueRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(isHovering ? Color.primary.opacity(0.045) : .clear)
-        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.16), value: isHovering)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.16)) {
+                isHovering = hovering
+            }
+        }
         .contextMenu {
             Button("Copy issue ID") {
                 NSPasteboard.general.clearContents()
@@ -321,6 +336,86 @@ private struct IssueRow: View {
         case "chore": "wrench.and.screwdriver"
         default: "checkmark.square"
         }
+    }
+}
+
+private struct IssueHoverDetails: View {
+    let issue: BeadIssue
+    let statusColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Divider()
+
+            if let description = issue.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !description.isEmpty {
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            } else {
+                Text("No description")
+                    .font(.caption)
+                    .italic()
+                    .foregroundStyle(.tertiary)
+            }
+
+            HStack(spacing: 12) {
+                DetailLabel(
+                    title: issue.normalizedStatus.label,
+                    symbol: issue.normalizedStatus.symbol,
+                    color: statusColor
+                )
+
+                if let person = issue.assignee ?? issue.owner, !person.isEmpty {
+                    DetailLabel(title: person, symbol: "person.crop.circle")
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 14) {
+                DetailLabel(
+                    title: "\(issue.dependencyCount) dependencies",
+                    symbol: "arrow.triangle.branch"
+                )
+                DetailLabel(
+                    title: "\(issue.dependentCount) dependents",
+                    symbol: "point.3.connected.trianglepath.dotted"
+                )
+                DetailLabel(
+                    title: "\(issue.commentCount) comments",
+                    symbol: "bubble.left"
+                )
+            }
+
+            HStack(spacing: 12) {
+                if let created = issue.createdDate {
+                    Text("Created \(created, style: .date)")
+                }
+                if let updated = issue.updatedDate {
+                    Text("Updated \(updated, style: .relative) ago")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+        }
+        .padding(.top, 2)
+    }
+}
+
+private struct DetailLabel: View {
+    let title: String
+    let symbol: String
+    var color: Color = .secondary
+
+    var body: some View {
+        Label(title, systemImage: symbol)
+            .font(.caption2)
+            .foregroundStyle(color)
+            .lineLimit(1)
     }
 }
 

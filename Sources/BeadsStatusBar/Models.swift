@@ -36,6 +36,11 @@ struct BeadIssue: Codable, Identifiable, Hashable, Sendable {
         return ISO8601DateFormatter().date(from: updatedAt)
     }
 
+    var createdDate: Date? {
+        guard let createdAt else { return nil }
+        return ISO8601DateFormatter().date(from: createdAt)
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, title, description, status, priority, assignee, owner
         case issueType = "issue_type"
