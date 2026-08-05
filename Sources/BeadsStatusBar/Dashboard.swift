@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import MarkdownUI
 
 struct DashboardView: View {
     @EnvironmentObject private var state: AppState
@@ -811,11 +812,7 @@ private struct IssueInspector: View {
     private var description: some View {
         if let text = issue.description?.trimmingCharacters(in: .whitespacesAndNewlines),
            !text.isEmpty {
-            Text(text)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            MarkdownSection(text: text, font: .body)
         } else {
             Text("No description")
                 .font(.body)
@@ -926,11 +923,7 @@ private struct InspectorTextSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             InspectorSectionTitle(title: title)
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            MarkdownSection(text: text, font: .caption)
         }
     }
 }
@@ -989,7 +982,7 @@ private struct DashboardBackground: View {
         } else {
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .opacity(0.82)
+                .opacity(0.72)
         }
     }
 }

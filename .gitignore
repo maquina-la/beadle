@@ -3,6 +3,9 @@ dist/
 .DS_Store
 *.xcuserstate
 
+# Editor-local state
+.zcode/
+
 # Dolt database files (added by bd init)
 .dolt/
 *.db

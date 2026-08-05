@@ -10,10 +10,23 @@ let package = Package(
     products: [
         .executable(name: "BeadsStatusBar", targets: ["BeadsStatusBar"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/gonzalezreal/MarkdownUI.git", from: "2.4.1")
+    ],
     targets: [
         .executableTarget(
             name: "BeadsStatusBar",
-            path: "Sources/BeadsStatusBar"
+            dependencies: [
+                .product(name: "MarkdownUI", package: "MarkdownUI")
+            ],
+            path: "Sources/BeadsStatusBar",
+            swiftSettings: [
+                // MarkdownUI 2.4.1's Theme builder closures are non-isolated but
+                // call @MainActor SwiftUI modifiers, which doesn't satisfy Swift
+                // 6 strict concurrency. Use Swift 5 mode for this target until
+                // MarkdownUI publishes Swift 6-compatible releases.
+                .swiftLanguageMode(.v5)
+            ]
         )
     ]
 )
