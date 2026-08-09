@@ -141,6 +141,34 @@ struct BeadsClient: Sendable {
         return outputData
     }
 
+    static func doltServerRunning(
+        for project: ProjectConfiguration,
+        configuredExecutable: String?
+    ) async -> Bool? {
+        let data: Data?
+        do {
+            data = try await Task.detached(priority: .utility) {
+                try runSynchronously(
+                    arguments: ["dolt", "status", "--json", "--readonly", "--sandbox"],
+                    project: project,
+                    configuredExecutable: configuredExecutable
+                )
+            }.value
+        } catch {
+            return nil
+        }
+
+        guard let data,
+              let status = try? JSONDecoder().decode(DoltStatus.self, from: data) else {
+            return nil
+        }
+        return status.running
+    }
+
+    private struct DoltStatus: Decodable {
+        let running: Bool
+    }
+
     static func resolveExecutable(configuredExecutable: String?) -> String? {
         let fileManager = FileManager.default
         let home = fileManager.homeDirectoryForCurrentUser.path
