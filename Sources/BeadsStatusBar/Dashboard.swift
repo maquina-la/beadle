@@ -37,6 +37,9 @@ struct DashboardView: View {
             }
         }
         .task { state.startPolling() }
+        .onChange(of: state.selectedProjectID) { _, _ in
+            Task { await state.checkDoltStatus() }
+        }
         .onChange(of: visibleEntries.map(\.key)) { _, keys in
             if let selectedIssueKey, !keys.contains(selectedIssueKey) {
                 self.selectedIssueKey = keys.first
@@ -97,13 +100,13 @@ struct DashboardView: View {
                 selection: $state.selectedProjectID,
                 title: state.selectedProjectName
             )
-            .frame(maxWidth: .infinity)
+            .frame(width: 132)
 
-            StatusFilterMenu(selection: $state.filter)
-                .frame(width: 112)
+            FilterMenu(filters: $state.filters, options: state.availableFilterOptions)
+                .frame(width: 56)
 
             SearchField(text: $state.searchText, isFocused: $searchHasFocus)
-                .frame(width: 132)
+                .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 12)
         .frame(height: 46)
@@ -155,6 +158,8 @@ struct DashboardView: View {
                                         detail: state.detail(for: key, fallback: issue),
                                         detailIsLoading: state.loadingDetails.contains(key),
                                         detailError: state.detailErrors[key],
+                                        gitInfo: state.gitInfo(for: key),
+                                        gitInfoIsLoading: state.gitInfoIsLoading(for: key),
                                         isSelected: selectedIssueKey == key,
                                         isPinned: pinnedIssueKey == key,
                                         onActivate: {
@@ -189,6 +194,7 @@ struct DashboardView: View {
             }
             .focusable()
             .focused($listHasFocus)
+            .focusEffectDisabled()
             .onKeyPress(.upArrow) {
                 moveSelection(by: -1, proxy: proxy)
                 return .handled
@@ -258,9 +264,15 @@ struct DashboardView: View {
             HStack(spacing: 8) {
                 refreshStatus(at: context.date)
                 Spacer()
-                Button("Settings…") { openAppSettings() }
-                    .buttonStyle(.borderless)
-                    .keyboardShortcut(",", modifiers: .command)
+                Button {
+                    openAppSettings()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(",", modifiers: .command)
+                .help("Settings")
+                .accessibilityLabel("Settings")
                 Button("Quit") { NSApplication.shared.terminate(nil) }
                     .buttonStyle(.borderless)
                     .keyboardShortcut("q", modifiers: .command)
@@ -276,17 +288,25 @@ struct DashboardView: View {
             Label("Some projects unavailable", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
                 .help("Cached issues remain visible. Open Settings to check project and CLI paths.")
-        } else if let lastRefresh = state.lastRefresh {
-            let isStale = now.timeIntervalSince(lastRefresh) > 60
-            Label {
-                Text("Updated \(lastRefresh, style: .relative) ago")
-            } icon: {
-                Image(systemName: isStale ? "clock.badge.exclamationmark" : "checkmark.circle")
+        } else if let running = state.doltServerRunning {
+            HStack(spacing: 4) {
+                Image(systemName: running ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle")
+                    .foregroundStyle(running ? Color.green : Color.secondary)
+                Text(running ? "Dolt running" : "Dolt stopped")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(isStale ? Color.orange : Color.secondary.opacity(0.68))
+            .help(running
+                  ? "The Dolt database server for this project is running."
+                  : "The Dolt database server for this project is not running.")
         } else {
-            Text("Not updated yet")
-                .foregroundStyle(.tertiary)
+            HStack(spacing: 4) {
+                Image(systemName: "bolt.horizontal.circle")
+                    .foregroundStyle(.tertiary)
+                Text("Checking…")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
@@ -298,18 +318,15 @@ struct DashboardView: View {
     private var unavailableTitle: String {
         if state.hasProjectErrors { return "Can’t load beads" }
         if !state.searchText.isEmpty { return "No search results" }
-        switch state.filter {
-        case .closed: return "No closed beads"
-        case .blocked: return "Nothing blocked"
-        case .inProgress: return "Nothing in progress"
-        case .open, .all: return "No active beads"
-        }
+        if !state.filters.isEmpty { return "No matching beads" }
+        return "No active beads"
     }
 
     private var unavailableSymbol: String {
         if state.hasProjectErrors { return "exclamationmark.triangle" }
         if !state.searchText.isEmpty { return "magnifyingglass" }
-        return state.filter == .closed ? "archivebox" : "checkmark.circle"
+        if !state.filters.isEmpty { return "line.3.horizontal.decrease.circle" }
+        return "checkmark.circle"
     }
 
     private var unavailableDescription: String {
@@ -366,6 +383,7 @@ struct DashboardView: View {
 
     private func requestDetails(for issue: BeadIssue, in project: ProjectConfiguration) {
         Task { await state.loadDetails(for: issue, in: project) }
+        Task { await state.loadGitInfo(for: issue, in: project) }
     }
 
     private func openAppSettings() {
@@ -423,28 +441,115 @@ private struct ProjectFilterMenu: View {
     }
 }
 
-private struct StatusFilterMenu: View {
-    @Binding var selection: IssueFilter
+private struct FilterMenu: View {
+    @Binding var filters: IssueFilters
+    let options: AppState.FilterOptions
 
     var body: some View {
         Menu {
-            ForEach(IssueFilter.allCases) { filter in
-                Button {
-                    selection = filter
-                } label: {
-                    if selection == filter {
-                        Label(filter.label, systemImage: "checkmark")
-                    } else {
-                        Text(filter.label)
+            Section("Status") {
+                ForEach(IssueStatus.allCases) { status in
+                    toggle(
+                        title: status.label,
+                        isSelected: filters.statuses.contains(status),
+                        symbol: status.symbol
+                    ) {
+                        if filters.statuses.contains(status) {
+                            filters.statuses.remove(status)
+                        } else {
+                            filters.statuses.insert(status)
+                        }
                     }
                 }
             }
+            Section("Priority") {
+                ForEach(0...4, id: \.self) { priority in
+                    toggle(title: priority.priorityLabel, isSelected: filters.priorities.contains(priority)) {
+                        if filters.priorities.contains(priority) {
+                            filters.priorities.remove(priority)
+                        } else {
+                            filters.priorities.insert(priority)
+                        }
+                    }
+                }
+            }
+            if !options.types.isEmpty {
+                Section("Type") {
+                    ForEach(options.types, id: \.self) { type in
+                        toggle(title: type.capitalized, isSelected: filters.types.contains(type)) {
+                            if filters.types.contains(type) {
+                                filters.types.remove(type)
+                            } else {
+                                filters.types.insert(type)
+                            }
+                        }
+                    }
+                }
+            }
+            if !options.assignees.isEmpty {
+                Section("Assignee") {
+                    ForEach(options.assignees, id: \.self) { assignee in
+                        toggle(title: assignee, isSelected: filters.assignees.contains(assignee)) {
+                            if filters.assignees.contains(assignee) {
+                                filters.assignees.remove(assignee)
+                            } else {
+                                filters.assignees.insert(assignee)
+                            }
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button("Clear All") { filters.clear() }
+                .disabled(filters.isEmpty)
         } label: {
-            FilterLabel(title: selection.label, symbol: selection.symbol, showsDisclosure: true)
+            filterLabel
         }
         .menuStyle(.borderlessButton)
-        .help("Filter by status")
-        .accessibilityLabel("Status filter, \(selection.label)")
+        .help("Filter issues")
+        .accessibilityLabel(filters.isEmpty ? "Filter issues" : "Filter issues, \(filters.activeCount) active")
+    }
+
+    /// A single toggle row: shows a native checkmark when selected. Using `Toggle`
+    /// (rather than a `Button` with a manual checkmark) is what makes macOS render
+    /// the standard selected-state indicator inside a menu.
+    @ViewBuilder
+    private func toggle(title: String, isSelected: Bool, symbol: String? = nil, action: @escaping () -> Void) -> some View {
+        Toggle(isOn: Binding(
+            get: { isSelected },
+            set: { _ in action() }
+        )) {
+            if let symbol {
+                Label(title, systemImage: symbol)
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    private var filterLabel: some View {
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(filters.isEmpty ? Color.secondary : Color.accentColor)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 30)
+            .background(.quaternary.opacity(0.58), in: RoundedRectangle(cornerRadius: 7))
+            .contentShape(Rectangle())
+
+            if filters.activeCount > 0 {
+                Text("\(filters.activeCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.accentColor))
+                    .offset(x: 4, y: -3)
+            }
+        }
     }
 }
 
@@ -497,7 +602,7 @@ private struct SearchField: View {
             .allowsHitTesting(!text.isEmpty)
             .accessibilityHidden(text.isEmpty)
         }
-        .font(.caption)
+        .font(.callout)
         .padding(.horizontal, 8)
         .frame(height: 30)
         .background(.quaternary.opacity(0.58), in: RoundedRectangle(cornerRadius: 7))
@@ -574,6 +679,8 @@ private struct IssueRow: View {
     let detail: BeadIssue
     let detailIsLoading: Bool
     let detailError: String?
+    let gitInfo: IssueGitInfo?
+    let gitInfoIsLoading: Bool
     let isSelected: Bool
     let isPinned: Bool
     let onActivate: () -> Void
@@ -660,7 +767,9 @@ private struct IssueRow: View {
             projectName: project.name,
             issue: detail,
             isLoading: detailIsLoading,
-            error: detailError
+            error: detailError,
+            gitInfo: gitInfo,
+            gitInfoIsLoading: gitInfoIsLoading
         )
         .onHover(perform: handlePanelHover)
     }
@@ -753,6 +862,8 @@ private struct IssueInspector: View {
     let issue: BeadIssue
     let isLoading: Bool
     let error: String?
+    let gitInfo: IssueGitInfo?
+    let gitInfoIsLoading: Bool
 
     var body: some View {
         ScrollView {
@@ -761,6 +872,10 @@ private struct IssueInspector: View {
                 Divider()
                 description
                 properties
+
+                if showGitSection {
+                    gitSection
+                }
 
                 if !issue.labels.isEmpty {
                     labels
@@ -803,6 +918,13 @@ private struct IssueInspector: View {
         }
         .frame(width: 360, alignment: .leading)
         .frame(maxHeight: 510, alignment: .top)
+    }
+
+    /// Show the Git section once we know it's a git repo, or while we're still
+    /// loading. Hide it entirely for non-git projects to avoid noise.
+    private var showGitSection: Bool {
+        if gitInfoIsLoading { return true }
+        return gitInfo?.isGitRepository == true
     }
 
     private var inspectorHeader: some View {
@@ -872,6 +994,99 @@ private struct IssueInspector: View {
                 )
                 if let due = issue.dueDate {
                     DetailLabel(title: due.formatted(date: .abbreviated, time: .omitted), symbol: "calendar")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var gitSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            InspectorSectionTitle(title: "Git")
+
+            if gitInfoIsLoading || gitInfo == nil {
+                HStack(spacing: 7) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading git info…")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else if let info = gitInfo {
+                gitBranches(in: info)
+                gitCommits(in: info)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gitBranches(in info: IssueGitInfo) -> some View {
+        if info.matchingBranches.isEmpty {
+            Text("No matching branch")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(info.matchingBranches, id: \.name) { branch in
+                    HStack(spacing: 7) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(branch.name)
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if branch.isCurrent {
+                            Text("current")
+                                .font(.caption2.weight(.medium))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.18), in: Capsule())
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gitCommits(in info: IssueGitInfo) -> some View {
+        if info.commits.isEmpty {
+            Text("No commits reference this issue")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(info.commits.prefix(10).enumerated()), id: \.offset) { _, commit in
+                    HStack(alignment: .top, spacing: 7) {
+                        Text(commit.shortHash)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(commit.subject)
+                                .font(.caption)
+                                .lineLimit(2)
+                            if let date = commit.date {
+                                Text(date, style: .relative)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Button {
+                            copyToPasteboard(commit.shortHash)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Copy commit hash")
+                        .accessibilityLabel("Copy commit hash")
+                    }
+                }
+                if info.commits.count > 10 {
+                    Text("+\(info.commits.count - 10) more")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
@@ -1062,18 +1277,6 @@ private final class TransparentWindowProbeView: NSView {
         window.contentView?.wantsLayer = true
         window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
         window.invalidateShadow()
-    }
-}
-
-private extension IssueFilter {
-    var symbol: String {
-        switch self {
-        case .all: "line.3.horizontal.decrease.circle"
-        case .open: IssueStatus.open.symbol
-        case .inProgress: IssueStatus.inProgress.symbol
-        case .blocked: IssueStatus.blocked.symbol
-        case .closed: IssueStatus.closed.symbol
-        }
     }
 }
 

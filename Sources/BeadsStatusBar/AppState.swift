@@ -9,11 +9,14 @@ final class AppState: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var lastRefreshAttempt: Date?
+    @Published private(set) var doltServerRunning: Bool?
     @Published private(set) var issueDetails: [IssueKey: BeadIssue] = [:]
     @Published private(set) var loadingDetails: Set<IssueKey> = []
     @Published private(set) var detailErrors: [IssueKey: String] = [:]
+    @Published private(set) var issueGitInfo: [IssueKey: IssueGitInfo] = [:]
+    @Published private(set) var loadingGitInfo: Set<IssueKey> = []
     @Published var selectedProjectID: UUID?
-    @Published var filter: IssueFilter = .all
+    @Published var filters = IssueFilters()
     @Published var searchText = ""
     @Published var configuredExecutable: String {
         didSet { defaults.set(configuredExecutable, forKey: Keys.executable) }
@@ -68,7 +71,7 @@ final class AppState: ObservableObject {
         projectIssues.compactMap { snapshot in
             guard selectedProjectID == nil || selectedProjectID == snapshot.id else { return nil }
             let issues = snapshot.issues.filter { issue in
-                guard filter.includes(issue) else { return false }
+                guard filters.matches(issue) else { return false }
                 guard !searchText.isEmpty else { return true }
                 return issue.title.localizedCaseInsensitiveContains(searchText)
                     || issue.id.localizedCaseInsensitiveContains(searchText)
@@ -83,11 +86,35 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Distinct Type/Assignee values present in the currently-scoped issues, for the filter menu.
+    struct FilterOptions: Equatable, Sendable {
+        var types: [String] = []
+        var assignees: [String] = []
+    }
+
+    var availableFilterOptions: FilterOptions {
+        var types = Set<String>()
+        var assignees = Set<String>()
+        for snapshot in projectIssues where selectedProjectID == nil || selectedProjectID == snapshot.id {
+            for issue in snapshot.issues {
+                types.insert(issue.issueType)
+                if let assignee = issue.assignee, !assignee.isEmpty {
+                    assignees.insert(assignee)
+                }
+            }
+        }
+        return FilterOptions(
+            types: types.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
+            assignees: assignees.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        )
+    }
+
     func startPolling() {
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
+                await self?.checkDoltStatus()
                 do {
                     try await Task.sleep(for: .seconds(20))
                 } catch {
@@ -148,9 +175,25 @@ final class AppState: ObservableObject {
             guard let current = currentIssues[key] else { return false }
             return current.updatedAt == detail.updatedAt
         }
+        issueGitInfo = issueGitInfo.filter { key, _ in currentIssues[key] != nil }
         if results.contains(where: { $0.error == nil }) {
             lastRefresh = Date()
         }
+    }
+
+    func checkDoltStatus() async {
+        let project = projects.first { $0.id == selectedProjectID } ?? projects.first
+        guard let project else {
+            doltServerRunning = nil
+            return
+        }
+
+        let executable = configuredExecutable.isEmpty ? nil : configuredExecutable
+        let running = await BeadsClient.doltServerRunning(
+            for: project,
+            configuredExecutable: executable
+        )
+        doltServerRunning = running
     }
 
     func detail(for key: IssueKey, fallback: BeadIssue) -> BeadIssue {
@@ -175,6 +218,24 @@ final class AppState: ObservableObject {
         } catch {
             detailErrors[key] = error.localizedDescription
         }
+    }
+
+    func gitInfo(for key: IssueKey) -> IssueGitInfo? {
+        issueGitInfo[key]
+    }
+
+    func gitInfoIsLoading(for key: IssueKey) -> Bool {
+        loadingGitInfo.contains(key)
+    }
+
+    func loadGitInfo(for issue: BeadIssue, in project: ProjectConfiguration) async {
+        let key = IssueKey(projectID: project.id, issueID: issue.id)
+        guard issueGitInfo[key] == nil, !loadingGitInfo.contains(key) else { return }
+
+        loadingGitInfo.insert(key)
+        defer { loadingGitInfo.remove(key) }
+
+        issueGitInfo[key] = await GitClient.gitInfo(forIssue: issue.id, in: project)
     }
 
     func chooseAndAddProject() {
@@ -231,6 +292,7 @@ final class AppState: ObservableObject {
         projectIssues.removeAll { $0.id == id }
         issueDetails = issueDetails.filter { $0.key.projectID != id }
         detailErrors = detailErrors.filter { $0.key.projectID != id }
+        issueGitInfo = issueGitInfo.filter { $0.key.projectID != id }
         if selectedProjectID == id { selectedProjectID = nil }
         persistProjects()
     }

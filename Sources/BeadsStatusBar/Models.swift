@@ -131,7 +131,7 @@ struct BeadIssue: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-enum IssueStatus: String, CaseIterable, Identifiable, Sendable {
+enum IssueStatus: String, CaseIterable, Identifiable, Codable, Sendable {
     case open
     case inProgress = "in_progress"
     case blocked
@@ -179,32 +179,82 @@ struct ProjectIssues: Identifiable, Sendable {
     var id: UUID { project.id }
 }
 
-enum IssueFilter: String, CaseIterable, Identifiable {
-    case all
-    case open
-    case inProgress
-    case blocked
-    case closed
+struct IssueFilters: Codable, Equatable, Sendable {
+    var statuses: Set<IssueStatus> = []
+    var priorities: Set<Int> = []
+    var types: Set<String> = []
+    var assignees: Set<String> = []
 
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .all: "Active"
-        case .open: "Open"
-        case .inProgress: "In progress"
-        case .blocked: "Blocked"
-        case .closed: "Closed"
-        }
+    var isEmpty: Bool {
+        statuses.isEmpty && priorities.isEmpty && types.isEmpty && assignees.isEmpty
     }
 
-    func includes(_ issue: BeadIssue) -> Bool {
-        switch self {
-        case .all: issue.normalizedStatus != .closed
-        case .open: issue.normalizedStatus == .open
-        case .inProgress: issue.normalizedStatus == .inProgress
-        case .blocked: issue.normalizedStatus == .blocked
-        case .closed: issue.normalizedStatus == .closed
+    /// Total number of selected values across every dimension. Drives the badge count.
+    var activeCount: Int {
+        statuses.count + priorities.count + types.count + assignees.count
+    }
+
+    /// Empty dimension = no constraint (matches all). Within a dimension = OR, across = AND.
+    func matches(_ issue: BeadIssue) -> Bool {
+        if !statuses.isEmpty, !statuses.contains(issue.normalizedStatus) { return false }
+        if !priorities.isEmpty, !priorities.contains(issue.priority) { return false }
+        if !types.isEmpty, !types.contains(issue.issueType) { return false }
+        if !assignees.isEmpty {
+            let assignee = issue.assignee ?? ""
+            if assignee.isEmpty || !assignees.contains(assignee) { return false }
         }
+        return true
+    }
+
+    mutating func clear() {
+        statuses.removeAll()
+        priorities.removeAll()
+        types.removeAll()
+        assignees.removeAll()
+    }
+}
+
+extension Int {
+    /// Human-readable label for a Beads priority value (0–4), per AGENTS.md.
+    var priorityLabel: String {
+        switch self {
+        case 0: "P0 Critical"
+        case 1: "P1 High"
+        case 2: "P2 Medium"
+        case 3: "P3 Low"
+        case 4: "P4 Backlog"
+        default: "P\(self)"
+        }
+    }
+}
+
+// MARK: - Git
+
+/// Git information related to a specific issue, gathered on demand from the
+/// project's working tree. `isGitRepository == false` means the project folder
+/// is not inside a git repo (or git is unavailable); callers should hide the
+/// section entirely in that case.
+struct IssueGitInfo: Hashable, Sendable {
+    var matchingBranches: [IssueBranch] = []
+    var commits: [IssueCommit] = []
+    var isGitRepository: Bool = false
+
+    var isEmpty: Bool {
+        matchingBranches.isEmpty && commits.isEmpty
+    }
+}
+
+struct IssueBranch: Hashable, Sendable {
+    let name: String
+    let isCurrent: Bool
+}
+
+struct IssueCommit: Hashable, Sendable {
+    let shortHash: String
+    let subject: String
+    let isoDate: String
+
+    var date: Date? {
+        ISO8601DateFormatter().date(from: isoDate)
     }
 }
