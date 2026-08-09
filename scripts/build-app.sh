@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP_NAME="Beadle"
 EXECUTABLE_NAME="BeadsStatusBar"
-VERSION=${VERSION:-0.1.0}
+VERSION=${VERSION:-0.1.2}
 BUILD_NUMBER=${BUILD_NUMBER:-1}
 APP_BUNDLE="$PROJECT_ROOT/dist/$APP_NAME.app"
 UNIVERSAL=${UNIVERSAL:-0}
