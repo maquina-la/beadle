@@ -38,6 +38,12 @@
     ],
     "load_when": [
       {
+        "condition": "pull-request advisory configuration",
+        "paths": [
+          ".github/workflows/maquina-pr-advisory.yml"
+        ]
+      },
+      {
         "condition": "release or deployment configuration",
         "paths": [
           ".github/workflows/release.yml"
@@ -56,8 +62,8 @@
       ]
     },
     "id": "maquina.repository-development",
-    "status": "generated",
-    "version": "0.1.0"
+    "status": "active",
+    "version": "0.1.1"
   },
   "evidence": {
     "classes": {

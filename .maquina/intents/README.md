@@ -20,3 +20,5 @@ Current bootstrap intents:
 - `BEADLE-001` installs the repository-owned Factory Contract and intent set.
 - `BEADLE-002` installs the immutable, precompiled GitHub advisory Action after
   `BEADLE-001` is merged and therefore available from the trusted base revision.
+  Candidate Swift code runs only in the macOS validation job; the Linux Action
+  evaluates policy from the trusted base checkout and exports sanitized evidence.

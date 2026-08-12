@@ -1,0 +1,86 @@
+name: Máquina PR advisory
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  validate:
+    name: Observe candidate validation
+    # Beadle uses macOS 26 SwiftUI APIs behind availability checks, which still
+    # require the macOS 26 SDK at compile time. This matches release.yml.
+    runs-on: macos-26
+    outputs:
+      swift_build: ${{ steps.validation.outputs.swift_build }}
+      diff_check: ${{ steps.validation.outputs.diff_check }}
+    steps:
+      - name: Check out candidate merge
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Observe declared checks
+        id: validation
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set +e
+          swift build
+          swift_status=$?
+          git diff --check "$BASE_SHA...$HEAD_SHA"
+          diff_status=$?
+          set -e
+
+          if [[ "$swift_status" -eq 0 ]]; then
+            echo "swift_build=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "swift_build=failure" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$diff_status" -eq 0 ]]; then
+            echo "diff_check=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "diff_check=failure" >> "$GITHUB_OUTPUT"
+          fi
+
+  advise:
+    name: Evaluate trusted contract
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted base policy
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+          persist-credentials: false
+
+      # Immutable maquina-actions v0.1.6 commit. Its release manifest records
+      # Máquina source commit 0e71422c5f7511c93ec8d87d9bb5e1505fbb3654
+      # and binary SHA-256 8c2ddf810a2b11f99a1fd176231667886bbd2d1aff2480689377d5a32a1e4b05.
+      - name: Run precompiled Máquina advisory
+        id: maquina
+        uses: maquina-la/maquina-actions/pr-advisory@4588fd1b0817cffca6be724c76b2eaf6f092a3c4
+        with:
+          github-token: ${{ github.token }}
+          repository-root: trusted
+          checks: |
+            swift build=${{ needs.validate.outputs.swift_build }}
+            git diff --check=${{ needs.validate.outputs.diff_check }}
+
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: maquina-sanitized-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: trusted/.maquina/local/evidence-export/evidence
+          if-no-files-found: error
+          retention-days: 7
