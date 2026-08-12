@@ -1,0 +1,27 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-001",
+  "title": "Adopt the Máquina Factory Contract",
+  "objective": "Install a small Swift-aware Factory Contract, matching policy rules, agent guidance, and base-resident bootstrap intents without enabling a remote evaluator before its policy is trusted.",
+  "work_type": "repository-configuration",
+  "allowed_paths": [
+    ".maquina/factory-contract.json",
+    ".maquina/factory-contract.schema.json",
+    ".maquina/policy.rules",
+    ".maquina/intents/README.md",
+    ".maquina/intents/BEADLE-001.json",
+    ".maquina/intents/BEADLE-002.json",
+    "AGENTS.md"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "The Factory Contract validates from the Beadle repository root.",
+    "Policy rules encode the same capabilities with zero reported drift.",
+    "The default profile names swift build and git diff --check because Beadle has no Swift test target.",
+    "The advisory Action remains disabled until the contract and workflow intent are base-resident."
+  ]
+}
