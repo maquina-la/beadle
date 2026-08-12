@@ -27,6 +27,7 @@
       ".maquina/factory-contract.json",
       ".maquina/intents/README.md",
       "AGENTS.md",
+      "Package.swift",
       "README.md"
     ],
     "authority": [
