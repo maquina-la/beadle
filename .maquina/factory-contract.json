@@ -48,7 +48,7 @@
   "contract": {
     "applies_to": {
       "detected": "Package.swift",
-      "repository": "maquina-la/beadle",
+      "repository": "beadle",
       "web": null,
       "work_types": [
         "application",
