@@ -7,6 +7,7 @@
   "allowed_paths": [
     ".github/workflows/maquina-pr-advisory.yml",
     ".maquina/factory-contract.json",
+    ".maquina/intents/BEADLE-002.json",
     ".maquina/intents/README.md",
     "AGENTS.md"
   ],
@@ -21,7 +22,7 @@
     "Candidate swift build runs on a macOS runner and reports a bounded success or failure conclusion.",
     "git diff --check evaluates the pull-request base-to-head range.",
     "The advisory checks out policy only from the trusted base SHA.",
-    "The advisory Action is pinned to immutable commit 6d78714a682a73ec52248a4f804f0997139eb6f1 and requires no Go toolchain or Máquina source checkout.",
+    "The advisory Action is pinned to immutable v0.1.6 commit 4588fd1b0817cffca6be724c76b2eaf6f092a3c4 and requires no Go toolchain or Máquina source checkout.",
     "Sanitized evidence is uploaded without granting write permissions or publishing comments."
   ]
 }
