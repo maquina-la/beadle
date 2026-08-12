@@ -12,7 +12,9 @@ permissions:
 jobs:
   validate:
     name: Observe candidate validation
-    runs-on: macos-15
+    # Beadle uses macOS 26 SwiftUI APIs behind availability checks, which still
+    # require the macOS 26 SDK at compile time. This matches release.yml.
+    runs-on: macos-26
     outputs:
       swift_build: ${{ steps.validation.outputs.swift_build }}
       diff_check: ${{ steps.validation.outputs.diff_check }}
