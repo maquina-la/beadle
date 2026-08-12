@@ -2,6 +2,15 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+It also uses Máquina's repository-owned Factory Contract for pull-request scope
+and evidence. Before changing files, read `.maquina/factory-contract.json` and
+select a base-resident intent under `.maquina/intents/`. Keep changes within its
+`allowed_paths`. Every governed pull request body must include
+`Maquina-Intent`, `Maquina-Work-Type`, and `Maquina-Validation-Profile`; use
+`default` unless the contract defines a more specific profile. Run
+`maquina contract validate`, `maquina policy check`, `swift build`, and
+`git diff --check` before handoff.
+
 ## Quick Reference
 
 ```bash

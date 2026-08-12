@@ -1,0 +1,125 @@
+{
+  "$schema": "./factory-contract.schema.json",
+  "capabilities": {
+    "allow": [
+      "read repository files and Git metadata",
+      "edit task-scoped repository files",
+      "run local validation"
+    ],
+    "deny": [
+      "commit secrets or private credentials",
+      "force-push or rewrite shared Git history",
+      "treat planned strategy as implemented behavior"
+    ],
+    "protected_resources": [
+      {
+        "path": ".maquina/factory-contract.json",
+        "rule": "Review contract changes with repository owners."
+      }
+    ],
+    "require_approval": [
+      "deploy or mutate remote infrastructure",
+      "access or rotate credentials"
+    ]
+  },
+  "context": {
+    "always_load": [
+      ".maquina/factory-contract.json",
+      ".maquina/intents/README.md",
+      "AGENTS.md",
+      "README.md"
+    ],
+    "authority": [
+      {
+        "source": ".maquina/factory-contract.json",
+        "topic": "governed delivery rules"
+      }
+    ],
+    "load_when": [
+      {
+        "condition": "release or deployment configuration",
+        "paths": [
+          ".github/workflows/release.yml"
+        ]
+      }
+    ]
+  },
+  "contract": {
+    "applies_to": {
+      "detected": "Package.swift",
+      "repository": "maquina-la/beadle",
+      "web": null,
+      "work_types": [
+        "application",
+        "repository-configuration"
+      ]
+    },
+    "id": "maquina.repository-development",
+    "status": "generated",
+    "version": "0.1.0"
+  },
+  "evidence": {
+    "classes": {
+      "asserted": "Reported but not verified.",
+      "not_observed": "Unavailable in this run.",
+      "verified": "Observed in this run."
+    },
+    "required": [
+      "changed-file summary",
+      "exact validation commands and results",
+      "limitations"
+    ],
+    "retention": "Keep contracts and sanitized advisory metadata in Git; never store source, diffs, prompts, credentials, or raw model output in shared evidence."
+  },
+  "process": {
+    "allow_custom_commands": false,
+    "deployment": {
+      "approval_required": true,
+      "postcondition": "Observe the deployed URL and report the result.",
+      "precondition": "git diff --check"
+    },
+    "pull_request_advisory": {
+      "intent_required": true,
+      "observe_only": true,
+      "publication_modes": [
+        "none",
+        "neutral_check",
+        "operational_comment"
+      ],
+      "required_approvals": 1
+    },
+    "stages": [
+      {
+        "gate": "Scope is understood.",
+        "id": "inspect"
+      },
+      {
+        "gate": "Required context is loaded.",
+        "id": "context"
+      },
+      {
+        "gate": "Changes stay task-scoped.",
+        "id": "implement"
+      },
+      {
+        "gate": "Declared checks complete.",
+        "id": "validate"
+      },
+      {
+        "gate": "Diff and secrets are reviewed.",
+        "id": "review"
+      },
+      {
+        "gate": "Evidence and limitations are reported.",
+        "id": "handoff"
+      }
+    ],
+    "validation_profiles": {
+      "default": [
+        "swift build",
+        "git diff --check"
+      ]
+    }
+  },
+  "schema_version": "0.1"
+}

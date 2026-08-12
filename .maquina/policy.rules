@@ -1,0 +1,26 @@
+# Máquina policy rules.
+#
+# Plain-English statements that compile into the Factory Contract's
+# capabilities constraints. This file and .maquina/factory-contract.json were
+# generated together from one source, so they agree today. Edit either one and
+# run `maquina policy check` to see what diverged.
+#
+# Verbs: Deny / Forbid (alias) / Allow / Require approval for / Protect.
+# Targets are matched verbatim against the contract strings.
+
+# --- Allow: capabilities available without approval ---
+Allow read repository files and Git metadata.
+Allow edit task-scoped repository files.
+Allow run local validation.
+
+# --- Require approval: outward-facing or destructive actions ---
+Require approval for deploy or mutate remote infrastructure.
+Require approval for access or rotate credentials.
+
+# --- Deny: actions that must never happen ---
+Deny commit secrets or private credentials.
+Deny force-push or rewrite shared Git history.
+Deny treat planned strategy as implemented behavior.
+
+# --- Protect: resources with a durable preservation rule ---
+Protect .maquina/factory-contract.json: Review contract changes with repository owners.
