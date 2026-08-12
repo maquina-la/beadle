@@ -13,7 +13,6 @@
   ],
   "context_refs": [
     ".maquina/factory-contract.json",
-    ".maquina/intents/BEADLE-002.json",
     ".maquina/intents/README.md",
     "AGENTS.md",
     "Package.swift"
