@@ -21,7 +21,7 @@
     "Candidate swift build runs on a macOS runner and reports a bounded success or failure conclusion.",
     "git diff --check evaluates the pull-request base-to-head range.",
     "The advisory checks out policy only from the trusted base SHA.",
-    "The advisory Action is pinned to immutable v0.1.6 commit 4588fd1b0817cffca6be724c76b2eaf6f092a3c4 and requires no Go toolchain or Máquina source checkout.",
+    "The advisory Action is pinned to immutable v0.1.7 commit 13371dfca9642731e136464202b7fd371864fc46 and requires no Go toolchain or Máquina source checkout.",
     "Sanitized evidence is uploaded without granting write permissions or publishing comments."
   ]
 }

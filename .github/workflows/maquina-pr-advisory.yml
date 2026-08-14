@@ -63,12 +63,14 @@ jobs:
           path: trusted
           persist-credentials: false
 
-      # Immutable maquina-actions v0.1.6 commit. Its release manifest records
-      # Máquina source commit 0e71422c5f7511c93ec8d87d9bb5e1505fbb3654
-      # and binary SHA-256 8c2ddf810a2b11f99a1fd176231667886bbd2d1aff2480689377d5a32a1e4b05.
+      # Immutable maquina-actions v0.1.7 commit. Its release manifest records
+      # Máquina source commit c89b1fd33cd15f28d6d6f187c1171410ca1f7dca
+      # and binary SHA-256 6fef15edfaf8cdb8950ad3582cd497e7d0739a8b3561beb5952d64f8091856e6.
       - name: Run precompiled Máquina advisory
         id: maquina
-        uses: maquina-la/maquina-actions/pr-advisory@4588fd1b0817cffca6be724c76b2eaf6f092a3c4
+        uses: maquina-la/maquina-actions/pr-advisory@13371dfca9642731e136464202b7fd371864fc46
+        env:
+          MAQUINA_TELEMETRY: "on"
         with:
           github-token: ${{ github.token }}
           repository-root: trusted
