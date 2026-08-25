@@ -1,0 +1,23 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-004",
+  "title": "Always-visible projects and closed-issue defaults",
+  "objective": "Rework issue-list filtering so every configured project header stays visible even when the current filters match zero of its issues, and so closed issues are hidden by default unless the Closed status filter is explicitly enabled.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "A project whose issues are all filtered out still renders its header with a zero count; only the explicit single-project scope in the project menu hides other projects.",
+    "With no status filter selected, closed issues are excluded from the list; selecting Closed in the status filter reveals them, and clearing filters hides them again.",
+    "Search operates within the same visibility rule: closed issues appear in search results only while Closed is enabled.",
+    "The status filter menu communicates that closed issues are hidden until selected.",
+    "Filter and snapshot-visibility rules are covered by tests, and swift build plus git diff --check pass."
+  ]
+}
