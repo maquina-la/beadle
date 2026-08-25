@@ -1,0 +1,24 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-003",
+  "title": "Dolt health intelligence and self-healing",
+  "objective": "Give Beadle users visibility into per-project Dolt server health because agents operate bd most of the time: detect port collisions, unpinned default ports, and cross-repository database contamination; self-heal 'database not found on Dolt server' failures by pinning a free port and starting the server; stagger parallel refresh cold starts; add a Swift test target for the health engine.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Package.swift",
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "Health findings separate critical contamination (foreign database inside a project's data directory, own database served from another repository, effective port shared with another project) from warnings (unpinned default port).",
+    "A refresh failure matching bd's port-collision error triggers one automated repair: pin a free unused port, start the Dolt server, retry the load, and report what was done.",
+    "Project refreshes are staggered so simultaneous cold starts do not race to bind the default Dolt port.",
+    "A Dolt health view lists per-project port, database, and findings with fix actions.",
+    "The health engine is covered by a Swift test target, and swift build plus git diff --check pass."
+  ]
+}
