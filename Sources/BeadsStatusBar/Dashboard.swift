@@ -140,7 +140,10 @@ struct DashboardView: View {
     private var issueList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 0) {
+                // Lazy, so off-screen rows — each of which carries badges,
+                // status glyphs and its own hover machinery — are not built
+                // until they are scrolled to.
+                LazyVStack(spacing: 0) {
                     ForEach(state.filteredProjectIssues) { snapshot in
                         let isCollapsed = collapsedProjectIDs.contains(snapshot.project.id)
                         Section {
@@ -681,7 +684,10 @@ private struct ProjectHeader: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 14)
         .frame(height: 26)
-        .background(.thinMaterial)
+        // A colour rather than a third material: these sit over the content
+        // tint, which sits over the window's glass, so every header was a
+        // separate backdrop pass for a band 26pt tall.
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
         .accessibilityLabel("\(name) project, \(count) issues")
         .accessibilityValue(isCollapsed ? "collapsed" : "expanded")
         .accessibilityHint("Press to \(isCollapsed ? "expand" : "collapse") this project")
@@ -1269,21 +1275,21 @@ private struct DashboardBackground: View {
     }
 }
 
+/// Tints the content area over the window's glass. Deliberately a colour and
+/// not another material: the window beneath is already blurring what is behind
+/// it, and a second blur over the same pixels costs a full-size backdrop pass
+/// per frame to produce a difference that is not visible. The opacities below
+/// are raised to match what the stacked version looked like.
 private struct ContentLayerBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        ZStack {
-            if reduceTransparency {
-                Color(nsColor: .controlBackgroundColor)
-            } else {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(contrast == .increased ? 0.62 : 0.3)
-                Color(nsColor: .controlBackgroundColor)
-                    .opacity(contrast == .increased ? 0.38 : 0.12)
-            }
+        if reduceTransparency {
+            Color(nsColor: .controlBackgroundColor)
+        } else {
+            Color(nsColor: .controlBackgroundColor)
+                .opacity(contrast == .increased ? 0.72 : 0.34)
         }
     }
 }
@@ -1301,13 +1307,21 @@ struct WindowTransparencyConfigurator: NSViewRepresentable {
 }
 
 final class TransparentWindowProbeView: NSView {
+    private weak var configuredWindow: NSWindow?
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         configureWindow()
     }
 
+    /// Applied once per window. `updateNSView` runs on every SwiftUI update —
+    /// every keystroke, every 20-second poll — and `invalidateShadow()` on a
+    /// non-opaque window makes AppKit re-derive the shadow from the alpha of
+    /// the entire window content. Doing that per update was paying a
+    /// compositing cost for a window whose transparency never changes.
     func configureWindow() {
-        guard let window else { return }
+        guard let window, window !== configuredWindow else { return }
+        configuredWindow = window
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
