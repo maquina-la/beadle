@@ -1,0 +1,29 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-006",
+  "title": "Replace the SF Symbol icon with a designed Beadle mark",
+  "objective": "Give Beadle its own mark, designed against the size it is actually seen at. The shipped menu bar icon is circle.hexagongrid.fill, a cluster of discs that merges into an indistinct smudge below roughly 20px. Replace it with a flat-top hexagon carrying three hexagonal beads punched through it, drawn in Swift as a template image so macOS tints and inverts it like any other status item, and ship the matching app icon, README lockup and social preview.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "design/**",
+    "img/*",
+    "packaging/*",
+    "scripts/build-app.sh",
+    "README.md"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "packaging/Info.plist",
+    "scripts/build-app.sh"
+  ],
+  "acceptance_criteria": [
+    "The menu bar icon is a template image drawn in Swift, so it tints, inverts and highlights with the menu bar instead of being a fixed bitmap or a bundled resource.",
+    "The mark stays legible at 16px: its silhouette remains distinct where the previous hexgrid symbol merges into a disc.",
+    "The app bundle carries an AppIcon.icns declared by CFBundleIconFile and copied in by scripts/build-app.sh.",
+    "README and social preview assets carry the wordmark as outlines, so no asset depends on a font being installed.",
+    "The mark's geometry exists as regenerable source under design/, not only as exported binaries.",
+    "swift build and git diff --check pass."
+  ]
+}

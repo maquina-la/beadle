@@ -347,27 +347,18 @@ struct DashboardView: View {
     }
 
     private var unavailableTitle: String {
-        if state.hasProjectErrors { return "Can’t load beads" }
-        if !state.searchText.isEmpty { return "No search results" }
-        if !state.filters.isEmpty { return "No matching beads" }
-        return "No active beads"
+        state.hasProjectErrors ? "Can’t load beads" : "No active beads"
     }
 
     private var unavailableSymbol: String {
-        if state.hasProjectErrors { return "exclamationmark.triangle" }
-        if !state.searchText.isEmpty { return "magnifyingglass" }
-        if !state.filters.isEmpty { return "line.3.horizontal.decrease.circle" }
-        return "checkmark.circle"
+        state.hasProjectErrors ? "exclamationmark.triangle" : "checkmark.circle"
     }
 
     private var unavailableDescription: String {
         if state.hasProjectErrors {
             return "Check the project folder and bd executable in Settings."
         }
-        if !state.searchText.isEmpty {
-            return "Try a different title, ID, assignee, description, or label."
-        }
-        return "This view will update automatically when Beads changes."
+        return "Projects stay listed with a zero count. Closed issues are hidden until you enable Closed in the Status filter."
     }
 
     private var visibleEntries: [IssueEntry] {
@@ -498,6 +489,7 @@ private struct FilterMenu: View {
                         }
                     }
                 }
+                Text("Closed issues are hidden until selected")
             }
             Section("Priority") {
                 ForEach(0...4, id: \.self) { priority in

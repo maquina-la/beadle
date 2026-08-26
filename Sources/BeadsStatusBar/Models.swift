@@ -194,9 +194,15 @@ struct IssueFilters: Codable, Equatable, Sendable {
         statuses.count + priorities.count + types.count + assignees.count
     }
 
-    /// Empty dimension = no constraint (matches all). Within a dimension = OR, across = AND.
+    /// Empty dimension = no constraint (matches all) within a dimension = OR,
+    /// across = AND — with one exception: with no status selected, closed
+    /// issues stay hidden until Closed is explicitly enabled.
     func matches(_ issue: BeadIssue) -> Bool {
-        if !statuses.isEmpty, !statuses.contains(issue.normalizedStatus) { return false }
+        if statuses.isEmpty {
+            if issue.normalizedStatus == .closed { return false }
+        } else if !statuses.contains(issue.normalizedStatus) {
+            return false
+        }
         if !priorities.isEmpty, !priorities.contains(issue.priority) { return false }
         if !types.isEmpty, !types.contains(issue.issueType) { return false }
         if !assignees.isEmpty {
