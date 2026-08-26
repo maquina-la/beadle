@@ -1,0 +1,23 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-005",
+  "title": "Correct git reference matching per issue",
+  "objective": "Make the per-issue git section match reality: commits that reference the issue ID anywhere in the message (not only the subject), case-insensitively, as a fixed string, and without substring bleed between IDs such as bd-123 matching bd-1234; branch matching gets the same boundary rule; record parsing becomes delimiter-based instead of a hand-rolled line scanner.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "A commit whose message references the ID only in the body is listed (regression verified against b9ee821 and fa53cae in this repository).",
+    "Matching is case-insensitive and treats the ID as a literal, so IDs containing regex metacharacters such as dots are safe.",
+    "bd-123 does not match bd-1234 in commit messages or branch names; IDs glued to other alphanumerics are rejected while trailing punctuation or separators still match.",
+    "Commit records are parsed from a delimiter-separated format with no subject-only re-confirmation.",
+    "Matcher and parser are covered by unit tests, and swift build plus git diff --check pass."
+  ]
+}
