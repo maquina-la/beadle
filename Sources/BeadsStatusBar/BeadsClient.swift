@@ -141,6 +141,59 @@ struct BeadsClient: Sendable {
         return outputData
     }
 
+    /// True when bd failed because the configured Dolt port belongs to a
+    /// server serving a different data directory.
+    static func isPortCollisionError(_ error: Error) -> Bool {
+        guard case BeadsClientError.commandFailed(let message) = error else { return false }
+        return DoltHealthEngine.isPortCollisionMessage(message)
+    }
+
+    /// Pins `bd dolt set port` for the project. This writes the project's
+    /// gitignored `.beads/metadata.json`, so it must not run with --readonly.
+    static func pinDoltPort(
+        _ port: Int,
+        for project: ProjectConfiguration,
+        configuredExecutable: String?
+    ) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            _ = try runSynchronously(
+                arguments: ["dolt", "set", "port", String(port)],
+                project: project,
+                configuredExecutable: configuredExecutable
+            )
+        }.value
+    }
+
+    static func startDoltServer(
+        for project: ProjectConfiguration,
+        configuredExecutable: String?
+    ) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            _ = try runSynchronously(
+                arguments: ["dolt", "start"],
+                project: project,
+                configuredExecutable: configuredExecutable
+            )
+        }.value
+    }
+
+    /// Pins a free port outside `takenPorts`, starts the project's Dolt
+    /// server on it, and returns the chosen port.
+    static func repairDoltServer(
+        for project: ProjectConfiguration,
+        configuredExecutable: String?,
+        takenPorts: Set<Int>
+    ) async throws -> Int {
+        guard let port = DoltPortAllocator.allocatePort(takenPorts: takenPorts) else {
+            throw BeadsClientError.commandFailed(
+                "No free Dolt port in \(DoltPortPolicy.lowerBound)–\(DoltPortPolicy.upperBound)."
+            )
+        }
+        try await pinDoltPort(port, for: project, configuredExecutable: configuredExecutable)
+        try await startDoltServer(for: project, configuredExecutable: configuredExecutable)
+        return port
+    }
+
     static func doltServerRunning(
         for project: ProjectConfiguration,
         configuredExecutable: String?

@@ -10,6 +10,8 @@ final class AppState: ObservableObject {
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var lastRefreshAttempt: Date?
     @Published private(set) var doltServerRunning: Bool?
+    @Published private(set) var projectHealth: [DoltProjectHealth] = []
+    @Published private(set) var repairNotes: [UUID: RepairNote] = [:]
     @Published private(set) var issueDetails: [IssueKey: BeadIssue] = [:]
     @Published private(set) var loadingDetails: Set<IssueKey> = []
     @Published private(set) var detailErrors: [IssueKey: String] = [:]
@@ -129,6 +131,20 @@ final class AppState: ObservableObject {
         pollingTask = nil
     }
 
+    struct RepairNote: Equatable, Sendable {
+        let message: String
+        let isError: Bool
+    }
+
+    private struct RefreshOutcome {
+        let snapshot: ProjectIssues
+        let healthInput: DoltHealthEngine.Input
+    }
+
+    /// Ports Beadle handed out this session, so concurrent repairs never
+    /// allocate the same port before the pin lands in metadata.json.
+    private var allocatedRepairPorts: Set<Int> = []
+
     func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true
@@ -138,32 +154,39 @@ final class AppState: ObservableObject {
         let currentProjects = projects
         let previousSnapshots = Dictionary(uniqueKeysWithValues: projectIssues.map { ($0.id, $0) })
         let executable = configuredExecutable.isEmpty ? nil : configuredExecutable
-        var results: [ProjectIssues] = []
+        var outcomes: [RefreshOutcome] = []
 
-        await withTaskGroup(of: ProjectIssues.self) { group in
-            for project in currentProjects {
-                group.addTask {
-                    do {
-                        let issues = try await BeadsClient.loadIssues(
-                            for: project,
-                            configuredExecutable: executable
-                        )
-                        return ProjectIssues(project: project, issues: issues, error: nil)
-                    } catch {
-                        let cachedIssues = previousSnapshots[project.id]?.issues ?? []
-                        return ProjectIssues(project: project, issues: cachedIssues, error: error.localizedDescription)
+        await withTaskGroup(of: RefreshOutcome.self) { group in
+            for (index, project) in currentProjects.enumerated() {
+                // Stagger cold starts: simultaneous bd processes race to bind
+                // the default Dolt port when no server is running yet.
+                let stagger = Duration.seconds(Double(index) * 0.2)
+                group.addTask { [weak self] in
+                    if stagger > .zero {
+                        try? await Task.sleep(for: stagger)
                     }
+                    return await Self.refreshProject(
+                        project,
+                        executable: executable,
+                        previousIssues: previousSnapshots[project.id]?.issues ?? [],
+                        repair: { error in
+                            guard BeadsClient.isPortCollisionError(error) else { return nil }
+                            return await self?.repairDoltServer(for: project, executable: executable)
+                        }
+                    )
                 }
             }
 
-            for await result in group {
-                results.append(result)
+            for await outcome in group {
+                outcomes.append(outcome)
             }
         }
 
+        let results = outcomes.map(\.snapshot)
         projectIssues = results.sorted {
             $0.project.name.localizedCaseInsensitiveCompare($1.project.name) == .orderedAscending
         }
+        projectHealth = DoltHealthEngine.assess(outcomes.map(\.healthInput))
         let currentIssues = Dictionary(
             uniqueKeysWithValues: results.flatMap { snapshot in
                 snapshot.issues.map {
@@ -179,6 +202,106 @@ final class AppState: ObservableObject {
         if results.contains(where: { $0.error == nil }) {
             lastRefresh = Date()
         }
+    }
+
+    private static func refreshProject(
+        _ project: ProjectConfiguration,
+        executable: String?,
+        previousIssues: [BeadIssue],
+        repair: (Error) async -> Int?
+    ) async -> RefreshOutcome {
+        do {
+            let issues = try await BeadsClient.loadIssues(for: project, configuredExecutable: executable)
+            let input = await healthInput(for: project, loadSucceeded: true, loadError: nil)
+            return RefreshOutcome(
+                snapshot: ProjectIssues(project: project, issues: issues, error: nil),
+                healthInput: input
+            )
+        } catch {
+            if let port = await repair(error) {
+                if let issues = try? await BeadsClient.loadIssues(for: project, configuredExecutable: executable) {
+                    let input = await healthInput(for: project, loadSucceeded: true, loadError: nil)
+                    return RefreshOutcome(
+                        snapshot: ProjectIssues(project: project, issues: issues, error: nil),
+                        healthInput: input
+                    )
+                }
+                _ = port // repair ran but the retry still failed; fall through with the original error
+            }
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let input = await healthInput(for: project, loadSucceeded: false, loadError: message)
+            return RefreshOutcome(
+                snapshot: ProjectIssues(project: project, issues: previousIssues, error: message),
+                healthInput: input
+            )
+        }
+    }
+
+    private static func healthInput(
+        for project: ProjectConfiguration,
+        loadSucceeded: Bool,
+        loadError: String?
+    ) async -> DoltHealthEngine.Input {
+        await Task.detached(priority: .utility) {
+            DoltHealthEngine.Input(
+                projectID: project.id,
+                projectName: project.name,
+                projectPath: project.path,
+                metadata: DoltMetadata.load(atProjectPath: project.path),
+                dataDirDatabases: DoltDataDirectory.databaseNames(atProjectPath: project.path),
+                loadSucceeded: loadSucceeded,
+                loadError: loadError
+            )
+        }.value
+    }
+
+    var hasCriticalDoltFindings: Bool {
+        projectHealth.contains { !$0.isHealthy }
+    }
+
+    /// Pins a free Dolt port and starts the server. Serialized on the main
+    /// actor so concurrent repairs pick distinct ports.
+    @discardableResult
+    private func repairDoltServer(
+        for project: ProjectConfiguration,
+        executable: String?
+    ) async -> Int? {
+        let taken = await Self.pinnedPorts(for: projects).union(allocatedRepairPorts)
+        do {
+            let port = try await BeadsClient.repairDoltServer(
+                for: project,
+                configuredExecutable: executable,
+                takenPorts: taken
+            )
+            allocatedRepairPorts.insert(port)
+            repairNotes[project.id] = RepairNote(
+                message: "Pinned Dolt port \(port) and started the server.",
+                isError: false
+            )
+            return port
+        } catch {
+            repairNotes[project.id] = RepairNote(
+                message: "Repair failed: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)",
+                isError: true
+            )
+            return nil
+        }
+    }
+
+    /// User-triggered fix from the health view: pin a unique port, start the
+    /// server, and refresh the project.
+    func applyPortFix(for projectID: UUID) async {
+        guard let project = projects.first(where: { $0.id == projectID }) else { return }
+        let executable = configuredExecutable.isEmpty ? nil : configuredExecutable
+        if await repairDoltServer(for: project, executable: executable) != nil {
+            await refresh()
+        }
+    }
+
+    private static func pinnedPorts(for projects: [ProjectConfiguration]) async -> Set<Int> {
+        await Task.detached(priority: .utility) {
+            Set(projects.compactMap { DoltMetadata.load(atProjectPath: $0.path)?.port })
+        }.value
     }
 
     func checkDoltStatus() async {
