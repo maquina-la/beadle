@@ -1288,7 +1288,9 @@ private struct ContentLayerBackground: View {
     }
 }
 
-private struct WindowTransparencyConfigurator: NSViewRepresentable {
+/// Makes the hosting window non-opaque. Glass and materials sample what
+/// is behind the window, so without this they render as flat fill.
+struct WindowTransparencyConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         TransparentWindowProbeView()
     }
@@ -1298,7 +1300,7 @@ private struct WindowTransparencyConfigurator: NSViewRepresentable {
     }
 }
 
-private final class TransparentWindowProbeView: NSView {
+final class TransparentWindowProbeView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         configureWindow()

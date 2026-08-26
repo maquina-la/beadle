@@ -26,7 +26,13 @@ struct DoltHealthView: View {
             }
         }
         .frame(width: 460, height: 540)
-        .background { DoltHealthBackground() }
+        .background {
+            ZStack {
+                DoltHealthBackground()
+                WindowTransparencyConfigurator()
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private var header: some View {
