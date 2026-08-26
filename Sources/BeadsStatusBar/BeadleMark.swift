@@ -93,3 +93,33 @@ struct BeadleMarkShape: Shape {
         Path(BeadleMark.path(in: rect))
     }
 }
+
+/// The app icon, drawn in the app: the same graphite tile and white mark as
+/// `packaging/AppIcon.icns`, so the chip in the panel header is recognisably
+/// the icon in the Dock rather than an accent-tinted lookalike.
+struct BeadleTile: View {
+    var cornerRadius: CGFloat = 8
+
+    /// Matches the gradient in design/export.py.
+    private static let top = Color(red: 0x56 / 255, green: 0x5B / 255, blue: 0x66 / 255)
+    private static let bottom = Color(red: 0x31 / 255, green: 0x35 / 255, blue: 0x3E / 255)
+
+    var body: some View {
+        GeometryReader { proxy in
+            let side = min(proxy.size.width, proxy.size.height)
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Self.top, Self.bottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                BeadleMarkShape()
+                    .fill(.white, style: FillStyle(eoFill: true))
+                    .frame(width: side * 0.63, height: side * 0.63 * sqrt(3) / 2)
+            }
+        }
+    }
+}

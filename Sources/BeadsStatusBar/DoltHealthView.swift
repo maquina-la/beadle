@@ -26,7 +26,7 @@ struct DoltHealthView: View {
             }
         }
         .frame(width: 460, height: 540)
-        .background(.thinMaterial)
+        .beadleWindowSurface()
     }
 
     private var header: some View {
