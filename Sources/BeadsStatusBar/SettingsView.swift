@@ -72,7 +72,6 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(width: 520, height: 420)
-        .padding()
         .beadleWindowSurface()
     }
 }
