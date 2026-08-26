@@ -15,8 +15,7 @@
   "context_refs": [
     "AGENTS.md",
     "README.md",
-    "packaging/Info.plist",
-    "scripts/build-app.sh"
+    "Package.swift"
   ],
   "acceptance_criteria": [
     "The menu bar icon is a template image drawn in Swift, so it tints, inverts and highlights with the menu bar instead of being a fixed bitmap or a bundled resource.",
