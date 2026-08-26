@@ -5,13 +5,13 @@ import MarkdownUI
 struct DashboardView: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var listHasFocus: Bool
     @FocusState private var searchHasFocus: Bool
     @State private var selectedIssueKey: IssueKey?
     @State private var pinnedIssueKey: IssueKey?
     @State private var collapsedProjectIDs: Set<UUID> = []
-    @State private var showDoltHealth = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,10 +38,6 @@ struct DashboardView: View {
             }
         }
         .task { state.startPolling() }
-        .sheet(isPresented: $showDoltHealth) {
-            DoltHealthView()
-                .environmentObject(state)
-        }
         .onChange(of: state.selectedProjectID) { _, _ in
             Task { await state.checkDoltStatus() }
         }
@@ -57,14 +53,8 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.accentColor.gradient)
-                BeadleMarkShape()
-                    .fill(.white, style: FillStyle(eoFill: true))
-                    .frame(width: 19, height: 16.5)
-            }
-            .frame(width: 32, height: 32)
+            BeadleTile()
+                .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Beadle")
@@ -77,7 +67,7 @@ struct DashboardView: View {
             Spacer()
 
             Button {
-                showDoltHealth = true
+                openDoltHealth()
             } label: {
                 Image(systemName: "stethoscope")
             }
@@ -301,7 +291,7 @@ struct DashboardView: View {
     private func refreshStatus(at now: Date) -> some View {
         if state.hasProjectErrors {
             Button {
-                showDoltHealth = true
+                openDoltHealth()
             } label: {
                 Label("Some projects unavailable", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -311,7 +301,7 @@ struct DashboardView: View {
             .accessibilityLabel("Some projects unavailable. Open Dolt health.")
         } else if state.hasCriticalDoltFindings {
             Button {
-                showDoltHealth = true
+                openDoltHealth()
             } label: {
                 Label("Dolt attention needed", systemImage: "stethoscope")
                     .foregroundStyle(.orange)
@@ -412,6 +402,15 @@ struct DashboardView: View {
     private func requestDetails(for issue: BeadIssue, in project: ProjectConfiguration) {
         Task { await state.loadDetails(for: issue, in: project) }
         Task { await state.loadGitInfo(for: issue, in: project) }
+    }
+
+    /// A window, and the app is activated first so it comes to the front.
+    /// Presented as a sheet it hung off the menu bar panel, which is
+    /// non-activating and closes on resigning key — so clicking any button
+    /// inside it dismissed panel and sheet together.
+    private func openDoltHealth() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        openWindow(id: BeadsStatusBarApp.doltHealthWindowID)
     }
 
     private func openAppSettings() {

@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct BeadsStatusBarApp: App {
+    static let doltHealthWindowID = "dolt-health"
+
     @StateObject private var state = AppState()
 
     var body: some Scene {
@@ -18,6 +20,15 @@ struct BeadsStatusBarApp: App {
                 .task { state.startPolling() }
         }
         .menuBarExtraStyle(.window)
+
+        // Its own window, not a sheet on the menu bar panel. That panel is
+        // non-activating and closes as soon as it resigns key, so a sheet
+        // hanging off it vanished the moment any of its buttons were clicked.
+        Window("Dolt Health", id: Self.doltHealthWindowID) {
+            DoltHealthView()
+                .environmentObject(state)
+        }
+        .windowResizability(.contentSize)
 
         Settings {
             SettingsView()
