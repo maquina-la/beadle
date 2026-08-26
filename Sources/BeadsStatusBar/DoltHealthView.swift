@@ -1,7 +1,8 @@
+import AppKit
 import SwiftUI
 
 /// Per-project Dolt server diagnostics: pinned ports, contamination findings,
-/// repair notes, and one-click fixes.
+/// repair notes, one-click fixes, and copyable agent-ready reports.
 struct DoltHealthView: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
@@ -41,6 +42,11 @@ struct DoltHealthView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            CopyReportButton(
+                helpText: "Copy the full report (paths, ports, findings, and repair commands) to hand to an agent or another LLM."
+            ) {
+                DoltHealthEngine.reportText(for: state.projectHealth)
+            }
             Button {
                 Task { await state.refresh() }
             } label: {
@@ -112,13 +118,30 @@ private struct ProjectHealthCard: View {
                 Text(health.projectName)
                     .font(.subheadline.weight(.semibold))
                 Spacer()
+                CopyReportButton(
+                    helpText: "Copy this project's health report (findings and repair commands)."
+                ) {
+                    DoltHealthEngine.reportText(for: [health])
+                }
                 portChip
             }
+
+            Text("Path: \(health.projectPath)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
 
             if let databaseName = health.databaseName {
                 Text("Database: \(databaseName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if !health.dataDirDatabases.isEmpty {
+                Text("In data dir: \(health.dataDirDatabases.joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
 
             ForEach(health.findings) { finding in
@@ -208,9 +231,36 @@ private struct FindingRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(finding.severity == .critical ? "Critical" : "Warning"): \(finding.title). \(finding.detail)")
+    }
+}
+
+/// Copies generated report text to the pasteboard and flashes a checkmark.
+private struct CopyReportButton: View {
+    let helpText: String
+    let payload: () -> String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(payload(), forType: .string)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = false
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .foregroundStyle(copied ? Color.green : Color.secondary)
+        }
+        .buttonStyle(.borderless)
+        .help(helpText)
+        .accessibilityLabel(copied ? "Copied" : "Copy report")
     }
 }

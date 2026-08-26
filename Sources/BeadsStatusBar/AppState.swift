@@ -246,6 +246,7 @@ final class AppState: ObservableObject {
             DoltHealthEngine.Input(
                 projectID: project.id,
                 projectName: project.name,
+                projectPath: project.path,
                 metadata: DoltMetadata.load(atProjectPath: project.path),
                 dataDirDatabases: DoltDataDirectory.databaseNames(atProjectPath: project.path),
                 loadSucceeded: loadSucceeded,
