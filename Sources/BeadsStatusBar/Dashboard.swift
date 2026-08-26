@@ -1294,15 +1294,9 @@ private struct ContentLayerBackground: View {
     }
 }
 
-/// Makes the hosting window non-opaque. Glass and materials sample what
-/// is behind the window, so without this they render as flat fill.
-struct WindowTransparencyConfigurator: NSViewRepresentable {
-    /// Real windows want their title bar dissolved into the glass. The menu
-    /// bar panel has no title bar, so it leaves this off.
-    var stylesTitleBar = false
-
+private struct WindowTransparencyConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
-        TransparentWindowProbeView(stylesTitleBar: stylesTitleBar)
+        TransparentWindowProbeView()
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
@@ -1310,17 +1304,8 @@ struct WindowTransparencyConfigurator: NSViewRepresentable {
     }
 }
 
-final class TransparentWindowProbeView: NSView {
+private final class TransparentWindowProbeView: NSView {
     private weak var configuredWindow: NSWindow?
-    private let stylesTitleBar: Bool
-
-    init(stylesTitleBar: Bool = false) {
-        self.stylesTitleBar = stylesTitleBar
-        super.init(frame: .zero)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -1340,11 +1325,6 @@ final class TransparentWindowProbeView: NSView {
         window.hasShadow = true
         window.contentView?.wantsLayer = true
         window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
-        if stylesTitleBar {
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.isMovableByWindowBackground = true
-        }
         window.invalidateShadow()
     }
 }
