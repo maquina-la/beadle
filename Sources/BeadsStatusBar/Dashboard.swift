@@ -11,6 +11,7 @@ struct DashboardView: View {
     @State private var selectedIssueKey: IssueKey?
     @State private var pinnedIssueKey: IssueKey?
     @State private var collapsedProjectIDs: Set<UUID> = []
+    @State private var showDoltHealth = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,6 +38,10 @@ struct DashboardView: View {
             }
         }
         .task { state.startPolling() }
+        .sheet(isPresented: $showDoltHealth) {
+            DoltHealthView()
+                .environmentObject(state)
+        }
         .onChange(of: state.selectedProjectID) { _, _ in
             Task { await state.checkDoltStatus() }
         }
@@ -70,6 +75,15 @@ struct DashboardView: View {
             }
 
             Spacer()
+
+            Button {
+                showDoltHealth = true
+            } label: {
+                Image(systemName: "stethoscope")
+            }
+            .buttonStyle(.borderless)
+            .help("Dolt health")
+            .accessibilityLabel("Dolt health")
 
             ZStack {
                 if state.isRefreshing {
@@ -183,6 +197,7 @@ struct DashboardView: View {
                                 name: snapshot.project.name,
                                 count: snapshot.issues.count,
                                 error: snapshot.error,
+                                doltFindingSummary: doltFindingSummary(for: snapshot.id),
                                 isCollapsed: isCollapsed,
                                 onToggle: {
                                     toggleCollapse(snapshot.project.id)
@@ -285,9 +300,25 @@ struct DashboardView: View {
     @ViewBuilder
     private func refreshStatus(at now: Date) -> some View {
         if state.hasProjectErrors {
-            Label("Some projects unavailable", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .help("Cached issues remain visible. Open Settings to check project and CLI paths.")
+            Button {
+                showDoltHealth = true
+            } label: {
+                Label("Some projects unavailable", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.plain)
+            .help("Cached issues remain visible. Open Dolt health for per-project diagnosis.")
+            .accessibilityLabel("Some projects unavailable. Open Dolt health.")
+        } else if state.hasCriticalDoltFindings {
+            Button {
+                showDoltHealth = true
+            } label: {
+                Label("Dolt attention needed", systemImage: "stethoscope")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.plain)
+            .help("A project's Dolt setup shows contamination or port-collision findings. Open Dolt health for details and fixes.")
+            .accessibilityLabel("Dolt attention needed. Open Dolt health.")
         } else if let running = state.doltServerRunning {
             HStack(spacing: 4) {
                 Image(systemName: running ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle")
@@ -354,6 +385,12 @@ struct DashboardView: View {
         } else {
             collapsedProjectIDs.insert(projectID)
         }
+    }
+
+    private func doltFindingSummary(for projectID: UUID) -> String? {
+        guard let health = state.projectHealth.first(where: { $0.projectID == projectID }),
+              !health.findings.isEmpty else { return nil }
+        return health.findings.map(\.title).joined(separator: "\n")
     }
 
     private func moveSelection(by offset: Int, proxy: ScrollViewProxy) {
@@ -614,6 +651,7 @@ private struct ProjectHeader: View {
     let name: String
     let count: Int
     let error: String?
+    let doltFindingSummary: String?
     let isCollapsed: Bool
     let onToggle: () -> Void
 
@@ -635,6 +673,12 @@ private struct ProjectHeader: View {
                         .foregroundStyle(.orange)
                         .help(error)
                         .accessibilityLabel("Project unavailable: \(error)")
+                } else if let doltFindingSummary {
+                    Image(systemName: "bolt.trianglebadge.exclamationmark")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                        .help(doltFindingSummary)
+                        .accessibilityLabel("Dolt finding: \(doltFindingSummary)")
                 }
                 Spacer()
                 Text("\(count)")
