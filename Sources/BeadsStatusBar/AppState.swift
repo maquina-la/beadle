@@ -70,22 +70,42 @@ final class AppState: ObservableObject {
     }
 
     var filteredProjectIssues: [ProjectIssues] {
-        projectIssues.compactMap { snapshot in
+        Self.filteredSnapshots(
+            projectIssues,
+            selectedProjectID: selectedProjectID,
+            filters: filters,
+            searchText: searchText
+        )
+    }
+
+    /// Projects stay visible even when the current filters match zero of
+    /// their issues (the header renders with a zero count); only the explicit
+    /// single-project scope removes the other projects.
+    nonisolated static func filteredSnapshots(
+        _ snapshots: [ProjectIssues],
+        selectedProjectID: UUID?,
+        filters: IssueFilters,
+        searchText: String
+    ) -> [ProjectIssues] {
+        snapshots.compactMap { snapshot in
             guard selectedProjectID == nil || selectedProjectID == snapshot.id else { return nil }
             let issues = snapshot.issues.filter { issue in
                 guard filters.matches(issue) else { return false }
                 guard !searchText.isEmpty else { return true }
-                return issue.title.localizedCaseInsensitiveContains(searchText)
-                    || issue.id.localizedCaseInsensitiveContains(searchText)
-                    || issue.assignee?.localizedCaseInsensitiveContains(searchText) == true
-                    || issue.description?.localizedCaseInsensitiveContains(searchText) == true
-                    || issue.labels.contains(where: {
-                        $0.localizedCaseInsensitiveContains(searchText)
-                    })
+                return matchesSearch(issue, text: searchText)
             }
-            guard !issues.isEmpty || snapshot.error != nil else { return nil }
             return ProjectIssues(project: snapshot.project, issues: issues, error: snapshot.error)
         }
+    }
+
+    nonisolated static func matchesSearch(_ issue: BeadIssue, text: String) -> Bool {
+        issue.title.localizedCaseInsensitiveContains(text)
+            || issue.id.localizedCaseInsensitiveContains(text)
+            || issue.assignee?.localizedCaseInsensitiveContains(text) == true
+            || issue.description?.localizedCaseInsensitiveContains(text) == true
+            || issue.labels.contains(where: {
+                $0.localizedCaseInsensitiveContains(text)
+            })
     }
 
     /// Distinct Type/Assignee values present in the currently-scoped issues, for the filter menu.
