@@ -1,0 +1,25 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-007",
+  "title": "Cut dashboard render cost",
+  "objective": "Remove the repeated per-update work that makes the panel feel laggy. The window shadow is invalidated on every SwiftUI update because updateNSView reconfigures a non-opaque window unconditionally; the issue list filters and searches the whole corpus four or five times per render through an uncached computed property, using locale-aware substring matching over full markdown descriptions; the list builds every row eagerly in a plain VStack; and translucent materials are stacked several deep over a transparent window. Keep the visible design, including Liquid Glass on macOS 26 and the Reduce Transparency fallbacks.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "The window is reconfigured only when its identity or its inputs actually change; invalidateShadow no longer runs on every SwiftUI update.",
+    "Filtering and search results are computed once per input change rather than recomputed by every view that reads them.",
+    "Search matching avoids locale-aware comparison over long description text while still matching case-insensitively.",
+    "Issue rows are built lazily, so off-screen rows cost nothing until scrolled to.",
+    "Translucency is not stacked more than one layer deep over the same pixels, and Liquid Glass on macOS 26, the pre-26 material fallback, and the Reduce Transparency path all still render.",
+    "Filtering behaviour is unchanged: same issues shown for the same filters, search text and project scope, covered by unit tests.",
+    "swift build and git diff --check pass."
+  ]
+}
