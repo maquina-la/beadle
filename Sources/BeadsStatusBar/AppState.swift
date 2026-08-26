@@ -5,7 +5,17 @@ import Foundation
 @MainActor
 final class AppState: ObservableObject {
     @Published private(set) var projects: [ProjectConfiguration]
-    @Published private(set) var projectIssues: [ProjectIssues] = []
+    @Published private(set) var projectIssues: [ProjectIssues] = [] {
+        didSet { recomputeDerivedIssueState() }
+    }
+
+    /// Filtering used to be a computed property, which meant every view that
+    /// read it re-filtered and re-searched the whole corpus: four or five full
+    /// passes per render, and a fresh pass on every keystroke. These are
+    /// derived once per input change instead.
+    @Published private(set) var filteredProjectIssues: [ProjectIssues] = []
+    @Published private(set) var availableFilterOptions = FilterOptions()
+    @Published private(set) var openIssueCount = 0
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var lastRefreshAttempt: Date?
@@ -17,9 +27,15 @@ final class AppState: ObservableObject {
     @Published private(set) var detailErrors: [IssueKey: String] = [:]
     @Published private(set) var issueGitInfo: [IssueKey: IssueGitInfo] = [:]
     @Published private(set) var loadingGitInfo: Set<IssueKey> = []
-    @Published var selectedProjectID: UUID?
-    @Published var filters = IssueFilters()
-    @Published var searchText = ""
+    @Published var selectedProjectID: UUID? {
+        didSet { recomputeDerivedIssueState() }
+    }
+    @Published var filters = IssueFilters() {
+        didSet { recomputeFilteredIssues() }
+    }
+    @Published var searchText = "" {
+        didSet { recomputeFilteredIssues() }
+    }
     @Published var configuredExecutable: String {
         didSet { defaults.set(configuredExecutable, forKey: Keys.executable) }
     }
@@ -43,12 +59,43 @@ final class AppState: ObservableObject {
         }
     }
 
-    var openIssueCount: Int {
-        projectIssues.flatMap(\.issues).filter { $0.normalizedStatus != .closed }.count
-    }
-
     var visibleIssueCount: Int {
         filteredProjectIssues.reduce(0) { $0 + $1.issues.count }
+    }
+
+    /// Recomputes everything derived from the issue set. Filter options and the
+    /// open count depend only on the loaded issues and the project scope; the
+    /// filtered list additionally depends on the filters and the search text.
+    private func recomputeDerivedIssueState() {
+        var types = Set<String>()
+        var assignees = Set<String>()
+        var openCount = 0
+        for snapshot in projectIssues {
+            let inScope = selectedProjectID == nil || selectedProjectID == snapshot.id
+            for issue in snapshot.issues {
+                if issue.normalizedStatus != .closed { openCount += 1 }
+                guard inScope else { continue }
+                types.insert(issue.issueType)
+                if let assignee = issue.assignee, !assignee.isEmpty {
+                    assignees.insert(assignee)
+                }
+            }
+        }
+        openIssueCount = openCount
+        availableFilterOptions = FilterOptions(
+            types: types.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
+            assignees: assignees.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        )
+        recomputeFilteredIssues()
+    }
+
+    private func recomputeFilteredIssues() {
+        filteredProjectIssues = Self.filteredSnapshots(
+            projectIssues,
+            selectedProjectID: selectedProjectID,
+            filters: filters,
+            searchText: searchText
+        )
     }
 
     var hasProjectErrors: Bool {
@@ -66,15 +113,6 @@ final class AppState: ObservableObject {
     var resolvedExecutablePath: String? {
         BeadsClient.resolveExecutable(
             configuredExecutable: configuredExecutable.isEmpty ? nil : configuredExecutable
-        )
-    }
-
-    var filteredProjectIssues: [ProjectIssues] {
-        Self.filteredSnapshots(
-            projectIssues,
-            selectedProjectID: selectedProjectID,
-            filters: filters,
-            searchText: searchText
         )
     }
 
@@ -98,37 +136,22 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Case-insensitive, but deliberately not *localized*: the locale-aware
+    /// variants normalize as they scan, which is a real cost over full
+    /// markdown descriptions on every keystroke. Matching semantics for the
+    /// text people actually type are the same.
     nonisolated static func matchesSearch(_ issue: BeadIssue, text: String) -> Bool {
-        issue.title.localizedCaseInsensitiveContains(text)
-            || issue.id.localizedCaseInsensitiveContains(text)
-            || issue.assignee?.localizedCaseInsensitiveContains(text) == true
-            || issue.description?.localizedCaseInsensitiveContains(text) == true
-            || issue.labels.contains(where: {
-                $0.localizedCaseInsensitiveContains(text)
-            })
+        issue.title.containsCaseInsensitive(text)
+            || issue.id.containsCaseInsensitive(text)
+            || issue.assignee?.containsCaseInsensitive(text) == true
+            || issue.description?.containsCaseInsensitive(text) == true
+            || issue.labels.contains { $0.containsCaseInsensitive(text) }
     }
 
     /// Distinct Type/Assignee values present in the currently-scoped issues, for the filter menu.
     struct FilterOptions: Equatable, Sendable {
         var types: [String] = []
         var assignees: [String] = []
-    }
-
-    var availableFilterOptions: FilterOptions {
-        var types = Set<String>()
-        var assignees = Set<String>()
-        for snapshot in projectIssues where selectedProjectID == nil || selectedProjectID == snapshot.id {
-            for issue in snapshot.issues {
-                types.insert(issue.issueType)
-                if let assignee = issue.assignee, !assignee.isEmpty {
-                    assignees.insert(assignee)
-                }
-            }
-        }
-        return FilterOptions(
-            types: types.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
-            assignees: assignees.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        )
     }
 
     func startPolling() {
@@ -469,4 +492,10 @@ final class AppState: ObservableObject {
     }
 
     private static let preferencesSuiteName = "im.carlosrivera.BeadsStatusBar"
+}
+
+private extension StringProtocol {
+    func containsCaseInsensitive(_ other: some StringProtocol) -> Bool {
+        range(of: other, options: .caseInsensitive) != nil
+    }
 }
