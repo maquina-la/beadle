@@ -1,0 +1,23 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-008",
+  "title": "Keep Dolt Health open when it is clicked",
+  "objective": "Dolt Health is presented as a sheet from inside the MenuBarExtra window. That window is a non-activating panel which closes as soon as it resigns key, so any click that activates the app — Copy report, Pin port, Re-check — dismisses the panel and takes the sheet with it, which reads as the whole app closing. Present Dolt Health as its own window scene and activate the app when opening it, the way Settings already works, so its buttons can be used.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift"
+  ],
+  "acceptance_criteria": [
+    "Dolt Health opens as its own window rather than a sheet attached to the menu bar panel.",
+    "Copy report, Pin port and Re-check can be clicked without the window disappearing, and the menu bar panel closing does not close Dolt Health.",
+    "Opening Dolt Health activates the app so the window comes to the front, matching how Settings is opened.",
+    "Done still closes the window, and reopening from any of its entry points brings it back.",
+    "swift build and git diff --check pass."
+  ]
+}
