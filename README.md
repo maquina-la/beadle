@@ -1,4 +1,7 @@
-# Beadle
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/beadle-lockup-dark.svg">
+  <img alt="Beadle" src="img/beadle-lockup-light.svg" height="56">
+</picture>
 
 **Your Beads work, one click away.** Beadle is a native macOS menu bar companion for [Beads](https://github.com/steveyegge/beads). It brings issues from all of your local projects into one focused, read-only view without asking you to leave what you are doing.
 

@@ -60,9 +60,9 @@ struct DashboardView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.accentColor.gradient)
-                Image(systemName: "circle.hexagongrid.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                BeadleMarkShape()
+                    .fill(.white, style: FillStyle(eoFill: true))
+                    .frame(width: 19, height: 16.5)
             }
             .frame(width: 32, height: 32)
 
@@ -256,9 +256,9 @@ struct DashboardView: View {
     private var onboarding: some View {
         VStack(spacing: 14) {
             Spacer()
-            Image(systemName: "circle.hexagongrid")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(Color.accentColor)
+            BeadleMarkShape()
+                .fill(Color.accentColor, style: FillStyle(eoFill: true))
+                .frame(width: 46, height: 40)
             VStack(spacing: 5) {
                 Text("Add your first Beads project")
                     .font(.headline)

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs><linearGradient id="graphite-tile" x1="0" y1="0" x2="0.28" y2="1">
+    <stop offset="0" stop-color="#5E6168"/>
+    <stop offset="1" stop-color="#31353E"/>
+  </linearGradient></defs>
+  <rect width="64" height="64" rx="14" fill="url(#graphite-tile)"/>
+  <path d="M27.79 7.43Q32.00 5.00 36.21 7.43L51.17 16.07Q55.38 18.50 55.38 23.36L55.38 40.64Q55.38 45.50 51.17 47.93L36.21 56.57Q32.00 59.00 27.79 56.57L12.83 47.93Q8.62 45.50 8.62 40.64L8.62 23.36Q8.62 18.50 12.83 16.07ZM24.50 20.80a7.50 7.50 0 1 0 15.00 0a7.50 7.50 0 1 0 -15.00 0ZM34.20 37.60a7.50 7.50 0 1 0 15.00 0a7.50 7.50 0 1 0 -15.00 0ZM14.80 37.60a7.50 7.50 0 1 0 15.00 0a7.50 7.50 0 1 0 -15.00 0Z" fill="#FFFFFF" fill-rule="evenodd"/>
+</svg>

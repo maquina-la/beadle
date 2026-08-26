@@ -1,0 +1,11 @@
+# Round-review screenshots and rendered sheets. Regenerate with gen*.py +
+# contact_sheet.py + headless Chrome; see README.md.
+*.png
+marks/index.html
+
+# Build products. The shipped copies live in packaging/ and img/.
+out/AppIcon.icns
+out/social-preview.png
+
+# Python bytecode from the generator scripts
+__pycache__/

@@ -9,7 +9,11 @@ struct BeadsStatusBarApp: App {
             DashboardView()
                 .environmentObject(state)
         } label: {
-            Label("\(state.openIssueCount)", systemImage: "circle.hexagongrid.fill")
+            Label {
+                Text("\(state.openIssueCount)")
+            } icon: {
+                Image(nsImage: BeadleMark.templateImage())
+            }
                 .accessibilityLabel("Beadle: \(state.openIssueCount) open issues")
                 .task { state.startPolling() }
         }

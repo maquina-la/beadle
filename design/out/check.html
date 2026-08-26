@@ -1,0 +1,48 @@
+<!doctype html><meta charset="utf-8"><title>Beadle handoff check</title>
+<style>
+  body { margin:0; padding:28px 32px 60px; background:#0b0c10; color:#eef;
+         font:14px/1.5 -apple-system, system-ui, sans-serif; }
+  h2 { font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+       color:#8a8f9c; margin:26px 0 10px; }
+  .row { display:flex; gap:20px; align-items:center; flex-wrap:wrap; }
+  .light { background:#F2F3F7; color:#111; }
+  .dark { background:#0e1014; }
+  .menubar { display:flex; align-items:center; gap:6px; padding:5px 12px;
+             border-radius:7px; font:13px -apple-system; }
+  .pad { padding:14px 18px; border-radius:10px; }
+  img { display:block; }
+</style>
+
+<h2>App tile — dark ground</h2>
+<div class="row pad dark">
+  <img src="beadle-icon.svg" width="128"><img src="beadle-icon.svg" width="64">
+  <img src="beadle-icon.svg" width="32"><img src="beadle-icon.svg" width="16">
+</div>
+
+<h2>App tile — light ground</h2>
+<div class="row pad light">
+  <img src="beadle-icon.svg" width="128"><img src="beadle-icon.svg" width="64">
+  <img src="beadle-icon.svg" width="32"><img src="beadle-icon.svg" width="16">
+</div>
+
+<h2>Menu bar glyph — the size it actually ships at</h2>
+<div class="row">
+  <span class="menubar dark" style="color:#fff">
+    <img src="beadle-mark.svg" height="16" style="filter:invert(1)"> 17</span>
+  <span class="menubar light" style="color:#111">
+    <img src="beadle-mark.svg" height="16"> 17</span>
+  <span class="menubar dark" style="color:#fff">
+    <img src="beadle-mark.svg" height="18" style="filter:invert(1)"> 17</span>
+  <span class="menubar light" style="color:#111">
+    <img src="beadle-mark.svg" height="18"> 17</span>
+  <span class="menubar light" style="color:#111">
+    <img src="beadle-mark.svg" height="14"> 17</span>
+</div>
+
+<h2>Lockup</h2>
+<div class="row pad light"><img src="beadle-lockup-light.svg" height="64"></div>
+<div class="row pad dark"><img src="beadle-lockup-dark.svg" height="64"></div>
+<div class="row pad light"><img src="beadle-lockup-light.svg" height="28"></div>
+
+<h2>Social preview (1280×640, shown at 640)</h2>
+<div class="row"><img src="social-preview.png" width="640"></div>

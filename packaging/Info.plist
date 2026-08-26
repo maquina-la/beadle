@@ -6,6 +6,8 @@
     <string>en</string>
     <key>CFBundleExecutable</key>
     <string>BeadsStatusBar</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>im.carlosrivera.BeadsStatusBar</string>
     <key>CFBundleInfoDictionaryVersion</key>
