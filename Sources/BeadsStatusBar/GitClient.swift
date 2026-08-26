@@ -66,8 +66,8 @@ struct GitClient: Sendable {
         )
     }
 
-    /// Branches whose short name contains the issue ID (case-insensitive),
-    /// deduplicated across local and remote refs.
+    /// Branches whose short name references the issue ID as a whole token
+    /// (case-insensitive), deduplicated across local and remote refs.
     private static func matchingBranches(
         issueID: String,
         currentBranch: String?,
@@ -87,12 +87,11 @@ struct GitClient: Sendable {
             return []
         }
 
-        let needle = issueID.lowercased()
         var seen = Set<String>()
         var result: [IssueBranch] = []
         for ref in output.split(separator: "\n") {
             let name = String(ref).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty, name.lowercased().contains(needle) else { continue }
+            guard !name.isEmpty, referencesIssueID(issueID, in: name) else { continue }
             guard seen.insert(name).inserted else { continue }
             result.append(
                 IssueBranch(name: name, isCurrent: name == currentBranch)
@@ -101,10 +100,10 @@ struct GitClient: Sendable {
         return result
     }
 
-    /// Recent commits whose message references the issue ID, newest first.
-    /// `--grep` defaults to fixed-string matching, but we re-confirm the ID
-    /// appears in each subject to avoid false positives from regex
-    /// metacharacters.
+    /// Commits whose message references the issue ID anywhere (subject or
+    /// body), newest first. `-i -F` makes git's own grep case-insensitive and
+    /// literal; the boundary check then rejects IDs glued to longer IDs
+    /// (bd-123 vs bd-1234) that a substring match would accept.
     private static func referencingCommits(
         issueID: String,
         git: String,
@@ -114,8 +113,10 @@ struct GitClient: Sendable {
             arguments: [
                 "log",
                 "--max-count=50",
-                "--format=%H%n%h%n%s%n%cI%n%",
+                "--format=%H%x1f%h%x1f%s%x1f%cI%x1f%b%x1e",
                 "--all",
+                "-i",
+                "-F",
                 "--grep=\(issueID)"
             ],
             git: git,
@@ -124,29 +125,67 @@ struct GitClient: Sendable {
             return []
         }
 
-        let needle = issueID.lowercased()
-        var commits: [IssueCommit] = []
-        // Each record is four lines (hash, shortHash, subject, date) followed by
-        // a record terminator line containing "%".
-        let lines = output.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
-        var index = 0
-        while index + 4 <= lines.count {
-            let terminatorLine = lines[index + 4]
-            guard terminatorLine.trimmingCharacters(in: .whitespacesAndNewlines) == "%" else {
-                index += 1
-                continue
-            }
-            let shortHash = String(lines[index + 1])
-            let subject = String(lines[index + 2])
-            let date = String(lines[index + 3])
-            defer { index += 5 }
+        return parseCommitRecords(output)
+            .filter { referencesIssueID(issueID, in: $0.message) }
+            .map { IssueCommit(shortHash: $0.shortHash, subject: $0.subject, isoDate: $0.isoDate) }
+    }
 
-            guard subject.lowercased().contains(needle) else { continue }
+    // MARK: - Matching and parsing (internal for tests)
+
+    /// A parsed `git log` record: the subject plus the full message used for
+    /// reference matching.
+    struct ParsedCommit: Equatable {
+        let shortHash: String
+        let subject: String
+        let isoDate: String
+        let message: String
+    }
+
+    /// Splits delimiter-separated `git log` output (fields joined with
+    /// unit separators, records with record separators) into commits.
+    static func parseCommitRecords(_ output: String) -> [ParsedCommit] {
+        guard !output.isEmpty else { return [] }
+
+        let rawRecords = output.split(separator: "\u{1e}", omittingEmptySubsequences: false)
+        var commits: [ParsedCommit] = []
+        for (index, rawRecord) in rawRecords.enumerated() {
+            // The first record starts clean; later ones carry the newline
+            // `git log` appends after each record.
+            let record = index == 0
+                ? String(rawRecord)
+                : String(rawRecord).trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
+            let fields = record.split(separator: "\u{1f}", omittingEmptySubsequences: false)
+                .map { String($0) }
+            guard fields.count >= 4 else { continue }
+
+            let subject = fields[2]
+            let body = fields.count >= 5 ? fields[4] : ""
+            let message = body.isEmpty ? subject : subject + "\n" + body
             commits.append(
-                IssueCommit(shortHash: shortHash, subject: subject, isoDate: date)
+                ParsedCommit(
+                    shortHash: fields[1],
+                    subject: subject,
+                    isoDate: fields[3],
+                    message: message
+                )
             )
         }
         return commits
+    }
+
+    /// True when `text` references `issueID` case-insensitively as a whole
+    /// token: the ID must not be glued to another alphanumeric on either
+    /// side, so bd-123 does not match bd-1234, while "Fixes bd-123." and
+    /// "bd-123_fix" still do.
+    static func referencesIssueID(_ issueID: String, in text: String) -> Bool {
+        guard !issueID.isEmpty else { return false }
+        let pattern = "(?i)(?<![a-zA-Z0-9])"
+            + NSRegularExpression.escapedPattern(for: issueID)
+            + "(?![a-zA-Z0-9])"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return text.localizedCaseInsensitiveContains(issueID)
+        }
+        return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     // MARK: - Process execution
