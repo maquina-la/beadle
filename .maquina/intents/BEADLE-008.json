@@ -1,8 +1,8 @@
 {
   "schema_version": "maquina.intent.v1",
   "id": "BEADLE-008",
-  "title": "Keep Dolt Health open when it is clicked",
-  "objective": "Dolt Health is presented as a sheet from inside the MenuBarExtra window. That window is a non-activating panel which closes as soon as it resigns key, so any click that activates the app — Copy report, Pin port, Re-check — dismisses the panel and takes the sheet with it, which reads as the whole app closing. Present Dolt Health as its own window scene and activate the app when opening it, the way Settings already works, so its buttons can be used.",
+  "title": "Fix Dolt Health dismissal and match the in-app icon to the app icon",
+  "objective": "Dolt Health is presented as a sheet from inside the MenuBarExtra window. That window is a non-activating panel which closes as soon as it resigns key, so any click that activates the app \u2014 Copy report, Pin port, Re-check \u2014 dismisses the panel and takes the sheet with it, which reads as the whole app closing. Present Dolt Health as its own window scene and activate the app when opening it, the way Settings already works, so its buttons can be used. Also draw the panel header's chip as the actual app icon \u2014 graphite tile, white mark \u2014 instead of an accent-tinted lookalike, so the icon in the app matches the one in the Dock.",
   "work_type": "application",
   "allowed_paths": [
     "Sources/BeadsStatusBar/*.swift",
@@ -18,6 +18,7 @@
     "Copy report, Pin port and Re-check can be clicked without the window disappearing, and the menu bar panel closing does not close Dolt Health.",
     "Opening Dolt Health activates the app so the window comes to the front, matching how Settings is opened.",
     "Done still closes the window, and reopening from any of its entry points brings it back.",
+    "The panel header chip uses the app icon's graphite tile and white mark rather than the system accent colour.",
     "swift build and git diff --check pass."
   ]
 }
