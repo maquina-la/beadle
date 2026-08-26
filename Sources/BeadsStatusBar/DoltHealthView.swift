@@ -26,13 +26,7 @@ struct DoltHealthView: View {
             }
         }
         .frame(width: 460, height: 540)
-        .background {
-            ZStack {
-                DoltHealthBackground()
-                WindowTransparencyConfigurator()
-                    .allowsHitTesting(false)
-            }
-        }
+        .beadleWindowSurface()
     }
 
     private var header: some View {
@@ -268,25 +262,5 @@ private struct CopyReportButton: View {
         .buttonStyle(.borderless)
         .help(helpText)
         .accessibilityLabel(copied ? "Copied" : "Copy report")
-    }
-}
-
-/// Liquid Glass on macOS 26, the material fallback below it, and an opaque
-/// window background when Reduce Transparency is on — the same three-way
-/// gate `DashboardBackground` uses, so the two surfaces age together.
-private struct DoltHealthBackground: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
-    var body: some View {
-        if reduceTransparency {
-            Color(nsColor: .windowBackgroundColor)
-        } else if #available(macOS 26.0, *) {
-            Color.clear
-                .glassEffect(.regular, in: Rectangle())
-        } else {
-            Rectangle()
-                .fill(.thinMaterial)
-        }
     }
 }
