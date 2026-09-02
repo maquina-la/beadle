@@ -1,0 +1,26 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-010",
+  "title": "Align Beadle's preference and bundle identifier",
+  "objective": "Ship Beadle under the la.maquina application identifier and ensure its stored preferences and Homebrew cask cleanup target that same domain before the notarized v0.1.3 release.",
+  "work_type": "application",
+  "allowed_paths": [
+    ".maquina/intents/BEADLE-010.json",
+    "Casks/beadle.rb",
+    "Sources/BeadsStatusBar/AppState.swift",
+    "packaging/Info.plist"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "Casks/beadle.rb",
+    "Package.swift",
+    "README.md",
+    "Sources/BeadsStatusBar/AppState.swift",
+    "packaging/Info.plist"
+  ],
+  "acceptance_criteria": [
+    "The bundle identifier and preference suite use la.maquina.BeadsStatusBar.",
+    "The Homebrew cask's zap stanza removes the matching la.maquina preference file.",
+    "swift build, maquina contract validate, maquina policy check, and git diff --check pass."
+  ]
+}
