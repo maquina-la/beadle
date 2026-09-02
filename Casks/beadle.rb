@@ -1,6 +1,6 @@
 cask "beadle" do
-  version "0.1.2"
-  sha256 "b6d3a5fe832b7ce85f6622f12abc82b798d11e72f55e59508ea408dd3f9cb271"
+  version "0.1.3"
+  sha256 "33daa61f85dbcf0b813992ffe16c6c663af073ee8fc0f91be6bae6f6d16548cf"
 
   url "https://github.com/maquina-la/beadle/releases/download/v#{version}/beadle-#{version}.zip",
       verified: "github.com/maquina-la/beadle/"
