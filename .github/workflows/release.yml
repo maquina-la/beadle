@@ -16,11 +16,108 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      - name: Import Developer ID certificate
+        env:
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id-application.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+
+          echo -n "$DEVELOPER_ID_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo -n "$APPLE_API_KEY_BASE64" | base64 --decode -o "$API_KEY_PATH"
+          chmod 600 "$CERTIFICATE_PATH" "$API_KEY_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Developer ID Application:/ { print $2; exit }')"
+          if [[ -z "$SIGNING_IDENTITY" ]]; then
+            echo "The imported certificate does not contain a Developer ID Application identity." >&2
+            exit 1
+          fi
+
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> "$GITHUB_ENV"
+
       - name: Build universal app
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          VERSION="${VERSION#v}" UNIVERSAL=1 scripts/build-app.sh
+          VERSION="${VERSION#v}" \
+            BUILD_NUMBER="${{ github.run_number }}" \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            RELEASE=1 \
+            UNIVERSAL=1 \
+            scripts/build-app.sh
+
+      - name: Notarize and staple app
+        env:
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          ARCHIVE="dist/beadle-${VERSION}.zip"
+          NOTARY_RESULT="$RUNNER_TEMP/notary-result.json"
+          NOTARY_LOG="$RUNNER_TEMP/notary-log.json"
+
+          if ! xcrun notarytool submit "$ARCHIVE" \
+            --key "$APPLE_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait \
+            --output-format json > "$NOTARY_RESULT"; then
+            cat "$NOTARY_RESULT"
+            exit 1
+          fi
+
+          cat "$NOTARY_RESULT"
+          SUBMISSION_ID="$(plutil -extract id raw -o - "$NOTARY_RESULT")"
+          NOTARY_STATUS="$(plutil -extract status raw -o - "$NOTARY_RESULT")"
+          xcrun notarytool log "$SUBMISSION_ID" \
+            --key "$APPLE_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            "$NOTARY_LOG"
+          cat "$NOTARY_LOG"
+
+          if [[ "$NOTARY_STATUS" != "Accepted" ]]; then
+            echo "Notarization finished with status: $NOTARY_STATUS" >&2
+            exit 1
+          fi
+
+          xcrun stapler staple "dist/Beadle.app"
+          xcrun stapler validate "dist/Beadle.app"
+
+          rm -f "$ARCHIVE"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "dist/Beadle.app" \
+            "$ARCHIVE"
+
+      - name: Verify distributable app
+        run: |
+          lipo -info "dist/Beadle.app/Contents/MacOS/BeadsStatusBar"
+          plutil -lint "dist/Beadle.app/Contents/Info.plist"
+          codesign --verify --deep --strict --verbose=2 "dist/Beadle.app"
+          codesign --display --verbose=4 "dist/Beadle.app"
+          spctl --assess --type execute --verbose=4 "dist/Beadle.app"
 
       - name: Create checksum
         env:
@@ -41,3 +138,11 @@ jobs:
             "dist/beadle-${VERSION_NUMBER}.zip.sha256" \
             --generate-notes \
             --verify-tag
+
+      - name: Clean up signing material
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+          rm -f \
+            "$RUNNER_TEMP/developer-id-application.p12" \
+            "$RUNNER_TEMP"/AuthKey_*.p8
