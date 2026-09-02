@@ -1,0 +1,30 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-009",
+  "title": "Sign and notarize Developer ID releases",
+  "objective": "Replace ad-hoc release artifacts with universal Developer ID-signed and notarized Beadle archives that pass Gatekeeper and can be distributed through the existing Homebrew cask, while keeping local development builds ad-hoc and keeping all credentials out of the repository.",
+  "work_type": "repository-configuration",
+  "allowed_paths": [
+    ".github/workflows/release.yml",
+    ".maquina/intents/BEADLE-009.json",
+    "README.md",
+    "scripts/build-app.sh"
+  ],
+  "context_refs": [
+    ".github/workflows/release.yml",
+    ".maquina/factory-contract.json",
+    "AGENTS.md",
+    "Casks/beadle.rb",
+    "Package.swift",
+    "README.md",
+    "scripts/build-app.sh"
+  ],
+  "acceptance_criteria": [
+    "Local builds remain ad-hoc signed by default, while release builds require an explicit Developer ID Application identity and use hardened runtime plus a secure timestamp.",
+    "The release workflow imports a password-protected signing certificate into an ephemeral keychain without committing credentials.",
+    "The release workflow submits the signed ZIP to Apple's notary service, staples and validates the ticket on Beadle.app, then recreates the final ZIP and checksum.",
+    "The universal executable, bundle metadata, Developer ID signature and Gatekeeper assessment are verified before GitHub release publication.",
+    "Release documentation lists the required GitHub secrets and the order-sensitive signing, notarization, stapling and checksum flow.",
+    "maquina contract validate, maquina policy check, swift build and git diff --check pass."
+  ]
+}
