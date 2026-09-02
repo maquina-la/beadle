@@ -491,7 +491,7 @@ final class AppState: ObservableObject {
         static let executable = "bdExecutablePath"
     }
 
-    private static let preferencesSuiteName = "im.carlosrivera.BeadsStatusBar"
+    private static let preferencesSuiteName = "la.maquina.BeadsStatusBar"
 }
 
 private extension StringProtocol {

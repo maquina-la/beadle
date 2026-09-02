@@ -17,5 +17,5 @@ cask "beadle" do
 
   app "Beadle.app"
 
-  zap trash: "~/Library/Preferences/im.carlosrivera.BeadsStatusBar.plist"
+  zap trash: "~/Library/Preferences/la.maquina.BeadsStatusBar.plist"
 end
