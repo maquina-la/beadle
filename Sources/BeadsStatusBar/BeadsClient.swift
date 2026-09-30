@@ -5,9 +5,15 @@ enum BeadsClientError: LocalizedError {
     case projectMissing(String)
     case commandFailed(String)
     case invalidResponse(String)
+    case journalTruncated(Int64)
+    case journalDisabled
 
     var errorDescription: String? {
         switch self {
+        case .journalTruncated:
+            "The event journal checkpoint has expired."
+        case .journalDisabled:
+            "The event journal is disabled."
         case .executableNotFound:
             "Could not find the bd executable. Install Beads or set its path in Settings."
         case .projectMissing(let path):
@@ -31,6 +37,44 @@ struct BeadsClient: Sendable {
                 configuredExecutable: configuredExecutable
             )
         }.value
+    }
+
+    static func refreshIssues(
+        for project: ProjectConfiguration, configuredExecutable: String?,
+        previous: IssueJournal?, forceBaseline: Bool
+    ) async throws -> IssueJournal {
+        let executable = resolveExecutable(configuredExecutable: configuredExecutable) ?? ""
+        return try await IssueJournal.refresh(
+            previous: previous, source: project.path + "\n" + executable,
+            forceBaseline: forceBaseline,
+            readEvents: { since in
+                try await Task.detached(priority: .utility) {
+                    let data = try runSynchronously(
+                        arguments: ["events", "tail", "--since", String(since), "--json",
+                                    "--readonly", "--sandbox"],
+                        project: project, configuredExecutable: configuredExecutable
+                    )
+                    return try IssueEvent.decode(data, since: since)
+                }.value
+            },
+            readIssues: { try await loadIssues(for: project, configuredExecutable: configuredExecutable) },
+            readDetail: { id in
+                try await Task.detached(priority: .utility) {
+                    // Use list's projection and visibility rules, rather than
+                    // show (which also returns hidden infrastructure issues).
+                    let data = try runSynchronously(
+                        arguments: ["list", "--id=\(id)", "--all", "--json", "--limit", "0",
+                                    "--no-pager", "--readonly", "--sandbox"],
+                        project: project, configuredExecutable: configuredExecutable
+                    )
+                    guard let row = try JSONDecoder().decode([BeadIssue].self, from: data).first,
+                          row.id == id else {
+                        throw BeadsClientError.invalidResponse("Changed issue is no longer visible.")
+                    }
+                    return row
+                }.value
+            }
+        )
     }
 
     static func loadIssueDetails(
@@ -74,11 +118,26 @@ struct BeadsClient: Sendable {
             configuredExecutable: configuredExecutable
         )
 
+        // bd list's projection omits is_blocked even in 1.3. Read the
+        // authoritative readiness projection when rebuilding the baseline.
+        let blockedData = try runSynchronously(
+            arguments: ["blocked", "--json", "--readonly", "--sandbox"],
+            project: project, configuredExecutable: configuredExecutable
+        )
         do {
-            return try JSONDecoder().decode([BeadIssue].self, from: outputData)
+            let blocked = Set(try JSONDecoder().decode([BlockedIssue].self, from: blockedData).map(\.id))
+            return try JSONDecoder().decode([BeadIssue].self, from: outputData).map { row in
+                var issue = row
+                issue.isBlocked = blocked.contains(issue.id)
+                return issue
+            }
         } catch {
             throw BeadsClientError.invalidResponse(error.localizedDescription)
         }
+    }
+
+    private struct BlockedIssue: Decodable {
+        let id: String
     }
 
     private static func runSynchronously(
@@ -130,6 +189,18 @@ struct BeadsClient: Sendable {
         let outputData = try Data(contentsOf: outputURL)
         let errorData = try Data(contentsOf: errorURL)
 
+        if arguments.first == "events" {
+            // bd serves historic rows with exit 0 even when journaling is off.
+            // Its stderr notice is essential: an empty success alone is unsafe.
+            if String(data: errorData, encoding: .utf8)?.contains("events journal is disabled") == true {
+                throw BeadsClientError.journalDisabled
+            }
+            if let failure = try? JSONDecoder().decode(JournalFailure.self, from: outputData),
+               failure.code == "events_journal_truncated", let head = failure.head, head >= 0 {
+                throw BeadsClientError.journalTruncated(head)
+            }
+        }
+
         guard process.terminationStatus == 0 else {
             let message = String(data: errorData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -139,6 +210,11 @@ struct BeadsClient: Sendable {
         }
 
         return outputData
+    }
+
+    private struct JournalFailure: Decodable {
+        let code: String
+        let head: Int64?
     }
 
     /// True when bd failed because the configured Dolt port belongs to a

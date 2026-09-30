@@ -57,19 +57,22 @@ struct BeadIssue: Decodable, Identifiable, Hashable, Sendable {
     let owner: String?
     let createdAt: String?
     let updatedAt: String?
-    let dependencyCount: Int
-    let dependentCount: Int
-    let commentCount: Int
+    var dependencyCount: Int
+    var dependentCount: Int
+    var commentCount: Int
     let labels: [String]
-    let dependencies: [BeadRelation]
-    let dependents: [BeadRelation]
+    var dependencies: [BeadRelation]
+    var dependents: [BeadRelation]
     let notes: String?
     let dueAt: String?
     let closedAt: String?
     let closeReason: String?
 
+    var isBlocked: Bool
+
     var normalizedStatus: IssueStatus {
-        IssueStatus(rawValue: status) ?? .open
+        let value = IssueStatus(rawValue: status) ?? .open
+        return value == .open && isBlocked ? .blocked : value
     }
 
     var updatedDate: Date? {
@@ -104,10 +107,12 @@ struct BeadIssue: Decodable, Identifiable, Hashable, Sendable {
         case dueAt = "due_at"
         case closedAt = "closed_at"
         case closeReason = "close_reason"
+        case isBlocked = "is_blocked"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        isBlocked = try container.decodeIfPresent(Bool.self, forKey: .isBlocked) ?? false
         id = try container.decode(String.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
         description = try container.decodeIfPresent(String.self, forKey: .description)

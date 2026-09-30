@@ -37,10 +37,15 @@ final class AppState: ObservableObject {
         didSet { recomputeFilteredIssues() }
     }
     @Published var configuredExecutable: String {
-        didSet { defaults.set(configuredExecutable, forKey: Keys.executable) }
+        didSet {
+            defaults.set(configuredExecutable, forKey: Keys.executable)
+            if configuredExecutable != oldValue { journals.removeAll() }
+        }
     }
 
     private let defaults: UserDefaults
+    private var pendingBaselineRefresh = false
+    private var journals: [UUID: IssueJournal] = [:]
     private var pollingTask: Task<Void, Never>?
     private var activeOpenPanel: NSOpenPanel?
 
@@ -158,7 +163,7 @@ final class AppState: ObservableObject {
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
+                await self?.refresh(forceBaseline: false)
                 await self?.checkDoltStatus()
                 do {
                     try await Task.sleep(for: .seconds(20))
@@ -182,21 +187,32 @@ final class AppState: ObservableObject {
     private struct RefreshOutcome {
         let snapshot: ProjectIssues
         let healthInput: DoltHealthEngine.Input
+        var journal: IssueJournal? = nil
     }
 
     /// Ports Beadle handed out this session, so concurrent repairs never
     /// allocate the same port before the pin lands in metadata.json.
     private var allocatedRepairPorts: Set<Int> = []
 
-    func refresh() async {
-        guard !isRefreshing else { return }
+    func refresh(forceBaseline: Bool = true) async {
+        guard !isRefreshing else {
+            if forceBaseline { pendingBaselineRefresh = true }
+            return
+        }
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            if pendingBaselineRefresh {
+                pendingBaselineRefresh = false
+                Task { await self.refresh() }
+            }
+        }
 
         lastRefreshAttempt = Date()
         let currentProjects = projects
         let previousSnapshots = Dictionary(uniqueKeysWithValues: projectIssues.map { ($0.id, $0) })
         let executable = configuredExecutable.isEmpty ? nil : configuredExecutable
+        let previousJournals = journals
         var outcomes: [RefreshOutcome] = []
 
         await withTaskGroup(of: RefreshOutcome.self) { group in
@@ -212,6 +228,8 @@ final class AppState: ObservableObject {
                         project,
                         executable: executable,
                         previousIssues: previousSnapshots[project.id]?.issues ?? [],
+                        journal: previousJournals[project.id],
+                        forceBaseline: forceBaseline,
                         repair: { error in
                             guard BeadsClient.isPortCollisionError(error) else { return nil }
                             return await self?.repairDoltServer(for: project, executable: executable)
@@ -225,6 +243,15 @@ final class AppState: ObservableObject {
             }
         }
 
+        guard executable == (configuredExecutable.isEmpty ? nil : configuredExecutable) else {
+            Task { await self.refresh() }
+            return
+        }
+        let projectIDs = Set(projects.map(\.id))
+        outcomes.removeAll { !projectIDs.contains($0.snapshot.id) }
+        journals = Dictionary(uniqueKeysWithValues: outcomes.compactMap { outcome in
+            outcome.journal.map { (outcome.snapshot.id, $0) }
+        })
         let results = outcomes.map(\.snapshot)
         projectIssues = results.sorted {
             $0.project.name.localizedCaseInsensitiveCompare($1.project.name) == .orderedAscending
@@ -239,7 +266,12 @@ final class AppState: ObservableObject {
         )
         issueDetails = issueDetails.filter { key, detail in
             guard let current = currentIssues[key] else { return false }
-            return current.updatedAt == detail.updatedAt
+            let old = previousSnapshots[key.projectID]?.issues.first { $0.id == key.issueID }
+            // Derived blocked updates may retain updated_at. Compare the row,
+            // and clear full details on baselines (relations may have changed).
+            return old == current && !forceBaseline
+                && previousJournals[key.projectID]?.baselineAt == journals[key.projectID]?.baselineAt
+                && current.updatedAt == detail.updatedAt
         }
         issueGitInfo = issueGitInfo.filter { key, _ in currentIssues[key] != nil }
         if results.contains(where: { $0.error == nil }) {
@@ -251,14 +283,20 @@ final class AppState: ObservableObject {
         _ project: ProjectConfiguration,
         executable: String?,
         previousIssues: [BeadIssue],
+        journal: IssueJournal?,
+        forceBaseline: Bool,
         repair: (Error) async -> Int?
     ) async -> RefreshOutcome {
         do {
-            let issues = try await BeadsClient.loadIssues(for: project, configuredExecutable: executable)
+            let refreshed = try await BeadsClient.refreshIssues(
+                for: project, configuredExecutable: executable,
+                previous: journal, forceBaseline: forceBaseline
+            )
+            let issues = refreshed.issues
             let input = await healthInput(for: project, loadSucceeded: true, loadError: nil)
             return RefreshOutcome(
                 snapshot: ProjectIssues(project: project, issues: issues, error: nil),
-                healthInput: input
+                healthInput: input, journal: refreshed
             )
         } catch {
             if let port = await repair(error) {
@@ -376,11 +414,13 @@ final class AppState: ObservableObject {
 
         do {
             let executable = configuredExecutable.isEmpty ? nil : configuredExecutable
-            issueDetails[key] = try await BeadsClient.loadIssueDetails(
+            var detail = try await BeadsClient.loadIssueDetails(
                 issueID: issue.id,
                 for: project,
                 configuredExecutable: executable
             )
+            detail.isBlocked = issue.isBlocked
+            issueDetails[key] = detail
         } catch {
             detailErrors[key] = error.localizedDescription
         }
@@ -454,6 +494,7 @@ final class AppState: ObservableObject {
     }
 
     func removeProject(id: UUID) {
+        journals[id] = nil
         projects.removeAll { $0.id == id }
         projectIssues.removeAll { $0.id == id }
         issueDetails = issueDetails.filter { $0.key.projectID != id }

@@ -17,7 +17,7 @@ Beadle is designed for the moment between remembering an issue and opening a ter
 - Read Markdown descriptions, notes, closure reasons, relationships, and dates.
 - Navigate with the keyboard using the arrow keys, Return, Escape, and `⌘F`.
 - Keep working through temporary CLI or project errors with cached results.
-- Stay in sync with automatic refreshes every 20 seconds.
+- Stay in sync with automatic refreshes every 20 seconds, reading only changes when the Beads event journal is enabled.
 
 Beadle reads through your local `bd` CLI. It does not edit issues or send project data to a service.
 
@@ -53,6 +53,20 @@ Releases created before the Developer ID rollout are ad-hoc signed. Tagged build
 3. Add more repositories from **Settings…** whenever you need them.
 
 Because macOS apps receive a limited shell `PATH`, Beadle looks for `bd` in the common Homebrew, `~/.local/bin`, and `~/go/bin` locations. If yours lives elsewhere, select it in Settings.
+
+## Incremental refreshes with Beads 1.3
+
+With Beads 1.3 or newer, you can enable the change journal in each workspace:
+
+```sh
+bd config set events-journal true
+```
+
+Beadle reads an initial issue snapshot, then checks `bd events tail --since` every 20 seconds using a separate checkpoint for each project. Updates and closes apply directly from event snapshots; creates and comments fetch the affected issue, while dependency edits and deletions rebuild the snapshot to keep relationship counts correct. Quiet projects avoid repeated full issue reads.
+
+Beadle never enables the journal itself or starts `bd serve`. Older Beads versions and disabled journals continue to use full snapshots. Expired checkpoints or invalid event reads trigger a rebuild, and temporary failures retain cached results. Checkpoints stay in memory and reset when the app restarts or its project/executable changes.
+
+Manual refresh always rebuilds current state. Automatic refresh also reconciles every five minutes, because pulls, branch changes, direct database writes, and replacing a clone are not reliably recorded in the local journal. Use manual refresh after these operations when you need to see them immediately.
 
 ## Build from source
 
