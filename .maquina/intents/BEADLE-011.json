@@ -1,0 +1,31 @@
+{
+  "schema_version": "maquina.intent.v1",
+  "id": "BEADLE-011",
+  "title": "Use the Beads change journal for incremental refreshes",
+  "objective": "Reduce repeated full issue reads using the opt-in Beads 1.3 CLI events journal, retaining compatibility with older installations and rebuilding current state when the journal cannot safely represent it. This intent is a prerequisite for the implementation of GitHub issue #15.",
+  "work_type": "application",
+  "allowed_paths": [
+    "Sources/BeadsStatusBar/*.swift",
+    "Tests/BeadsStatusBarTests/*.swift",
+    "README.md"
+  ],
+  "context_refs": [
+    "AGENTS.md",
+    "README.md",
+    "Package.swift",
+    "Sources/BeadsStatusBar/BeadsClient.swift",
+    "Sources/BeadsStatusBar/AppState.swift",
+    "Sources/BeadsStatusBar/Models.swift"
+  ],
+  "acceptance_criteria": [
+    "After an initial full snapshot, automatic refreshes use bd events tail --since with independent in-memory checkpoints for each configured project when its journal is enabled; Beadle does not enable the journal or start an HTTP server.",
+    "Baseline checkpoint acquisition precedes the full snapshot read so writes during initialization cannot be skipped; advance a checkpoint only after successfully applying the complete batch.",
+    "Apply create, update, close, delete, dependency and comment events without stale issue detail caches. Preserve correct relationship and count information when event snapshots omit it, using targeted reads or a full rebuild where necessary.",
+    "Interpret missing is_blocked as false and preserve closed and in-progress status semantics while reflecting dependency-driven blocked state.",
+    "Older CLIs, disabled journals, truncated checkpoints, invalid records and read failures safely fall back to current-state snapshots; failed loads retain cached results and expose the existing project error behavior.",
+    "Discard checkpoints when projects or the configured executable change. Manual refresh rebuilds from current state, and a documented bounded reconciliation interval catches unjournaled pulls, branch changes, journal resets and direct writes.",
+    "Tests exercise baseline races, independent cursors, replay and deletion, blocked transitions, incomplete event snapshots, fallback and truncation, checkpoint resets and reconciliation.",
+    "README explains the opt-in command, compatibility fallback, refresh and reconciliation behavior. HTTP preview integration is outside this change.",
+    "maquina contract validate, maquina policy check, swift build, swift test and git diff --check pass."
+  ]
+}
