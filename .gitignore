@@ -9,3 +9,8 @@ dist/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Beads 1.3 local state
+*.gate.lock*
+.beads-credential-key
+.beads/proxieddb/
