@@ -12,10 +12,7 @@
   "context_refs": [
     "AGENTS.md",
     "README.md",
-    "Package.swift",
-    "Sources/BeadsStatusBar/BeadsClient.swift",
-    "Sources/BeadsStatusBar/AppState.swift",
-    "Sources/BeadsStatusBar/Models.swift"
+    "Package.swift"
   ],
   "acceptance_criteria": [
     "After an initial full snapshot, automatic refreshes use bd events tail --since with independent in-memory checkpoints for each configured project when its journal is enabled; Beadle does not enable the journal or start an HTTP server.",
